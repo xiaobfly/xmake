@@ -110,6 +110,9 @@ end
 
 -- make the syslink flag
 function nf_syslink(self, lib)
+    if lib:endswith(".obj") then
+        return lib
+    end
     return nf_link(self, lib)
 end
 

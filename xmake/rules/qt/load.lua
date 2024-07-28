@@ -529,5 +529,15 @@ function main(target, opt)
     if not target:get("runtimes") then
         target:set("runtimes", is_mode("debug") and "MDd" or "MD")
     end
+
+    syslinks = target:get("syslinks")
+    for key, value in pairs(syslinks) do
+        value = string.gsub(value, "%$%$%[QT_INSTALL_PREFIX%]", qt.sdkdir)
+        value = string.gsub(value, "%$%$%[QT_INSTALL_QML%]", qt.qmldir)
+        value = string.gsub(value, "%$%$%[QT_INSTALL_PLUGINS%]", qt.pluginsdir)
+        value = string.gsub(value, "%$%$%[QT_INSTALL_HEADERS%]", qt.includedir)
+        syslinks[key] = value
+    end
+    target:set("syslinks", syslinks)
 end
 
