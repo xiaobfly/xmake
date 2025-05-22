@@ -83,7 +83,7 @@ end
 
 -- get unique tag
 function _get_unique_tag(content)
-    return hash.uuid(content):split("-", {plain = true})[1]:lower()
+    return hash.strhash32(content)
 end
 
 -- translate the file path
@@ -113,7 +113,7 @@ function _get_command_strings(package, cmd, opt)
             local dstname = path.filename(dstfile)
             local dstdir = path.normalize(path.directory(dstfile))
             table.insert(result, string.format("SetOutPath \"%s\"", dstdir))
-            table.insert(result, string.format("File /oname=%s \"%s\"", dstname, srcfile))
+            table.insert(result, string.format("File \"/oname=%s\" \"%s\"", dstname, srcfile))
         end
     elseif kind == "rm" then
         local filepath = _translate_filepath(package, cmd.filepath)
@@ -254,7 +254,7 @@ end
 function _pack_nsis(makensis, package)
 
     -- install the initial specfile
-    local specfile = path.join(package:buildir(), package:basename() .. ".nsi")
+    local specfile = path.join(package:builddir(), package:basename() .. ".nsi")
     if not os.isfile(specfile) then
         local specfile_template = package:get("specfile") or path.join(os.programdir(), "scripts", "xpack", "nsis", "makensis.nsi")
         os.cp(specfile_template, specfile)
@@ -268,7 +268,7 @@ function _pack_nsis(makensis, package)
     local specvars_values = {}
     io.gsub(specfile, "(" .. pattern .. ")", function(_, name)
         table.insert(specvars_names, name)
-    end)
+    end, {encoding = "ansi"})
     for _, name in ipairs(specvars_names) do
         name = name:trim()
         if specvars_values[name] == nil then
@@ -288,7 +288,7 @@ function _pack_nsis(makensis, package)
     io.gsub(specfile, "(" .. pattern .. ")", function(_, name)
         name = name:trim()
         return specvars_values[name]
-    end)
+    end, {encoding = "ansi"})
 
     -- make package
     os.vrunv(makensis, {specfile})

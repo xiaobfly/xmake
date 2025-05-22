@@ -121,10 +121,11 @@ function _checkout(package, url, sourcedir, opt)
         else
 
             -- clone whole history and tags
-            git.clone(url, {longpaths = longpaths, outputdir = packagedir})
+            -- @see https://github.com/xmake-io/xmake/issues/5507
+            git.clone(url, {treeless = true, checkout = false, longpaths = longpaths, outputdir = packagedir})
 
             -- attempt to checkout the given version
-            git.checkout(revision, {repodir = packagedir})
+            git.checkout(revision, {repodir = packagedir, includes = opt.url_includes})
 
             -- update all submodules
             if os.isfile(path.join(packagedir, ".gitmodules")) and opt.url_submodules ~= false then
@@ -219,7 +220,20 @@ function _download(package, url, sourcedir, opt)
     local sourcedir_tmp = sourcedir .. ".tmp"
     os.rm(sourcedir_tmp)
     local extension = archive.extension(packagefile)
-    local ok = try {function() archive.extract(packagefile, sourcedir_tmp, {excludes = opt.url_excludes}); return true end}
+    local errors
+    local ok = try {
+        function()
+            archive.extract(packagefile, sourcedir_tmp, {excludes = opt.url_excludes})
+            return true
+        end,
+        catch {
+            function (errs)
+                if errs then
+                    errors = tostring(errs)
+                end
+            end
+        }
+    }
     if ok then
         -- move to source directory and we skip it to avoid long path issues on windows if only one root directory
         os.rm(sourcedir)
@@ -240,7 +254,7 @@ function _download(package, url, sourcedir, opt)
         -- create an empty source directory if do not extract package file
         os.tryrm(sourcedir)
         os.mkdir(sourcedir)
-        raise("cannot extract %s, maybe missing extractor or invalid package file!", packagefile)
+        raise(errors or string.format("cannot extract %s, maybe missing extractor or invalid package file!", packagefile))
     else
         -- if it is not archive file, we only need to create empty source directory and use package:originfile()
         os.tryrm(sourcedir)
@@ -259,11 +273,7 @@ end
 
 -- download codes from script
 function _download_from_script(package, script, opt)
-
-    -- do download
     script(package, opt)
-
-    -- trace
     tty.erase_line_to_start().cr()
     cprint("${yellow}  => ${clear}download %s .. ${color.success}${text.success}", opt.url)
 end
@@ -313,6 +323,7 @@ function main(package, opt)
     for idx, url in ipairs(urls) do
         local url_alias = package:url_alias(url)
         local url_excludes = package:url_excludes(url)
+        local url_includes = package:url_includes(url)
         local url_http_headers = package:url_http_headers(url)
         local url_submodules = package:extraconf("urls", url, "submodules")
 
@@ -348,16 +359,19 @@ function main(package, opt)
                         url = url,
                         url_alias = url_alias,
                         url_excludes = url_excludes,
+                        url_includes = url_includes,
                         url_submodules = url_submodules})
                 elseif git.checkurl(url) then
                     _checkout(package, url, sourcedir, {
                         url_alias = url_alias,
+                        url_includes = url_includes,
                         url_submodules = url_submodules})
                 else
                     _download(package, url, sourcedir, {
                         download_only = opt.download_only,
                         url_alias = url_alias,
                         url_excludes = url_excludes,
+                        url_includes = url_includes,
                     url_http_headers = url_http_headers})
                 end
                 return true
@@ -438,5 +452,3 @@ function main(package, opt)
     os.cd(oldir)
     return ok
 end
-
-

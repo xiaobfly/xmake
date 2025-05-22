@@ -82,7 +82,7 @@ Xmake ≈ Make/Ninja + CMake/Meson + Vcpkg/Conan + distcc + ccache/sccache
 ```
 
 
-如果你想要了解更多，请参考：[在线文档](https://xmake.io/#/zh-cn/getting_started), [Github](https://github.com/xmake-io/xmake)以及[Gitee](https://gitee.com/tboox/xmake)，同时也欢迎加入我们的 [社区](https://xmake.io/#/zh-ch/about/contact).
+如果你想要了解更多，请参考：[在线文档](https://xmake.io/#/zh-cn/getting_started), [Github](https://github.com/xmake-io/xmake)以及[Gitee](https://gitee.com/tboox/xmake) 和 [GitCode](https://gitcode.com/xmake-io/xmake)，同时也欢迎加入我们的 [社区](https://xmake.io/#/zh-ch/about/contact).
 
 ![](https://github.com/xmake-io/xmake-docs/raw/master/assets/img/index/xmake-basic-render.gif)
 
@@ -109,7 +109,7 @@ wget https://xmake.io/shget.text -O - | bash
 #### 使用powershell
 
 ```powershell
-Invoke-Expression (Invoke-Webrequest 'https://xmake.io/psget.text' -UseBasicParsing).Content
+irm https://xmake.io/psget.text | iex
 ```
 
 #### 其他安装方式
@@ -307,6 +307,10 @@ iverilog      Icarus Verilog
 verilator     Verilator open-source SystemVerilog simulator and lint system
 cosmocc       build-once run-anywhere
 hdk           Harmony SDK
+ti-c2000      TI-CGT C2000 compiler
+ti-c6000      TI-CGT C6000 compiler
+iararm        IAR ARM C/C++ Compiler
+kotlin-native Kotlin Native Programming Language Compiler
 ```
 
 ## 支持语言
@@ -330,6 +334,7 @@ hdk           Harmony SDK
 * YASM
 * MASM32
 * Cppfront
+* Kotlin
 
 ## 支持特性
 
@@ -516,7 +521,7 @@ target("test")
     set_kind("binary")
     add_files("src/*.c")
     set_toolchains("llvm@llvm-10")
-````
+```
 
 #### 拉取交叉编译工具链
 
@@ -680,4 +685,7 @@ with:
 * [uael](https://github.com/uael): 提供语义版本跨平台c库 [sv](https://github.com/uael/sv)。
 * [OpportunityLiu](https://github.com/OpportunityLiu): 改进cuda构建, tests框架和ci。
 * [xq144](https://github.com/xq114): 改进 `xrepo env shell`，并贡献大量包到 [xmake-repo](https://github.com/xmake-io/xmake-repo) 仓库。
+* [star-hengxing](https://github.com/star-hengxing): 贡献大量包到 [xmake-repo](https://github.com/xmake-io/xmake-repo) 仓库。
+* [SirLynix](https://github.com/SirLynix): 贡献了许多的包，并且让更多的人知道和了解 xmake。
+* [Arthapz](https://github.com/Arthapz): 贡献新的 C++ Modules 实现。
 

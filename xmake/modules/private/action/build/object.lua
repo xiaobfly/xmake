@@ -55,9 +55,14 @@ function _do_build_file(target, sourcefile, opt)
     --
     -- we also need avoid the problem of not being able to recompile after the objectfile has been deleted
     -- @see https://github.com/xmake-io/xmake/issues/2551#issuecomment-1183922208
+    --
+    -- optimization:
+    -- we enable time cache to speed up is_changed, because there are a lot of header files in depfiles.
+    -- but we cannot cache it in link stage, maybe some objectfiles will be updated.
+    -- @see https://github.com/xmake-io/xmake/issues/6089
     local depvalues = {compinst:program(), compflags}
     local lastmtime = os.isfile(objectfile) and os.mtime(dependfile) or 0
-    if not dryrun and not depend.is_changed(dependinfo, {lastmtime = lastmtime, values = depvalues}) then
+    if not dryrun and not depend.is_changed(dependinfo, {lastmtime = lastmtime, values = depvalues, timecache = true}) then
         return
     end
 
@@ -76,7 +81,11 @@ function _do_build_file(target, sourcefile, opt)
 
     -- trace progress info
     if not opt.quiet then
-        progress.show(opt.progress, "${color.build.object}%scompiling.$(mode) %s", prefix, sourcefile)
+        local filepath = sourcefile
+        if target:namespace() then
+            filepath = target:namespace() .. "::" .. filepath
+        end
+        progress.show(opt.progress, "${color.build.object}%scompiling.$(mode) %s", prefix, filepath)
     end
 
     -- trace verbose info
@@ -134,8 +143,8 @@ function build(target, sourcebatch, opt)
     end
 end
 
--- add batch jobs to build the source files
-function main(target, batchjobs, sourcebatch, opt)
+-- add build jobs to batchjobs
+function _add_batchjobs(target, batchjobs, sourcebatch, opt)
     local rootjob = opt.rootjob
     for i = 1, #sourcebatch.sourcefiles do
         local sourcefile = sourcebatch.sourcefiles[i]
@@ -146,5 +155,29 @@ function main(target, batchjobs, sourcebatch, opt)
             local build_opt = table.join({objectfile = objectfile, dependfile = dependfile, sourcekind = sourcekind, progress = jobopt.progress}, opt)
             build_object(target, sourcefile, build_opt)
         end, {rootjob = rootjob, distcc = opt.distcc})
+    end
+end
+
+-- add build jobs to jobgraph
+function _add_jobgraph(target, jobgraph, sourcebatch, opt)
+    for i = 1, #sourcebatch.sourcefiles do
+        local sourcefile = sourcebatch.sourcefiles[i]
+        local objectfile = sourcebatch.objectfiles[i]
+        local dependfile = sourcebatch.dependfiles[i]
+        local sourcekind = assert(sourcebatch.sourcekind, "%s: sourcekind not found!", sourcefile)
+        local jobname = target:fullname() .. "/obj/" .. sourcefile
+        jobgraph:add(jobname, function (index, total, jobopt)
+            local build_opt = table.join({objectfile = objectfile, dependfile = dependfile, sourcekind = sourcekind, progress = jobopt.progress}, opt)
+            build_object(target, sourcefile, build_opt)
+        end, {distcc = opt.distcc})
+    end
+end
+
+function main(target, jobgraph, sourcebatch, opt)
+    opt = opt or {}
+    if jobgraph.add_orders then
+        _add_jobgraph(target, jobgraph, sourcebatch, opt)
+    else
+        _add_batchjobs(target, jobgraph, sourcebatch, opt)
     end
 end

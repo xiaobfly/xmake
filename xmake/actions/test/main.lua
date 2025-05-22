@@ -57,8 +57,13 @@ function _do_test_target(target, opt)
     local rundir = opt.rundir or target:rundir()
     local targetfile = path.absolute(target:targetfile())
     local runargs = table.wrap(opt.runargs or target:get("runargs"))
-    local outfile = os.tmpfile()
-    local errfile = os.tmpfile()
+    local autogendir = path.join(target:autogendir(), "tests")
+    local logname = opt.name:gsub("[/\\>=<|%*]", "_")
+    local outfile = path.absolute(path.join(autogendir, logname .. ".out"))
+    local errfile = path.absolute(path.join(autogendir, logname .. ".err"))
+    os.tryrm(outfile)
+    os.tryrm(errfile)
+    os.mkdir(autogendir)
     local run_timeout = opt.run_timeout
     local ok, syserrors = os.execv(targetfile, runargs, {try = true, timeout = run_timeout,
         curdir = rundir, envs = envs, stdout = outfile, stderr = errfile})
@@ -256,7 +261,8 @@ function _show_output(testinfo, kind)
     if output then
         if option.get("diagnosis") then
             local target = testinfo.target
-            local logfile = path.join(target:autogendir(), "tests", testinfo.name .. "." .. kind .. ".log")
+            local autogendir = path.join(target:autogendir(), "tests")
+            local logfile = path.join(autogendir, testinfo.name .. "." .. kind .. ".log")
             io.writefile(logfile, output)
             print("%s: %s", kind, logfile)
         elseif option.get("verbose") then
@@ -366,20 +372,8 @@ function _try_build_target(targetname)
     return passed, errors
 end
 
-function main()
-
-    -- do action for remote?
-    if remote_build_action.enabled() then
-        return remote_build_action()
-    end
-
-    -- lock the whole project
-    project.lock()
-
-    -- load config first
-    task.run("config", {}, {disable_dump = true})
-
-    -- get tests
+-- get tests, export this for the `project` plugin
+function get_tests()
     local tests = {}
     local group_pattern = option.get("group")
     if group_pattern then
@@ -440,6 +434,24 @@ function main()
             end
         end
     end
+    return tests
+end
+
+function main()
+
+    -- do action for remote?
+    if remote_build_action.enabled() then
+        return remote_build_action()
+    end
+
+    -- load config first
+    task.run("config", {}, {disable_dump = true})
+
+    -- lock the whole project
+    project.lock()
+
+    -- get tests
+    local tests = get_tests()
     local test_patterns = option.get("tests")
     if test_patterns then
         local tests_new = {}
@@ -460,7 +472,7 @@ function main()
     -- build targets with the given tests first
     local targetnames = {}
     for _, testinfo in table.orderpairs(tests) do
-        local targetname = testinfo.target:name()
+        local targetname = testinfo.target:fullname()
         if testinfo.build_should_pass then
             local passed, errors = _try_build_target(targetname)
             testinfo.passed = passed
@@ -488,4 +500,3 @@ function main()
     -- unlock the whole project
     project.unlock()
 end
-

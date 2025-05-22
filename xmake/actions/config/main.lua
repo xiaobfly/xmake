@@ -95,6 +95,7 @@ function _need_check(changed)
     if not changed then
         if os.mtime(path.join(os.programdir(), "core", "main.lua")) > os.mtime(config.filepath()) then
             changed = true
+            os.touch(config.filepath(), {mtime = os.time()})
         end
     end
     return changed
@@ -102,12 +103,11 @@ end
 
 -- check target
 function _check_target(target, checked_targets)
-    if not checked_targets[target:name()] then
-        checked_targets[target:name()] = target
+    if not checked_targets[target:fullname()] then
+        checked_targets[target:fullname()] = target
         for _, depname in ipairs(target:get("deps")) do
-            assert(depname ~= target:name(), "the target(%s) cannot depend self!", depname)
-            local deptarget = project.target(depname)
-            assert(deptarget, "unknown target(%s) for %s.deps!", depname, target:name())
+            local deptarget = project.target(depname, {namespace = target:namespace()})
+            assert(deptarget, "unknown target(%s) for %s.deps!", depname, target:fullname())
             _check_target(deptarget, checked_targets)
         end
     end
@@ -359,7 +359,6 @@ force to build in current directory via run `xmake -P .`]], os.projectdir())
         localcache.clear("option")
         localcache.clear("package")
         localcache.clear("toolchain")
-        localcache.clear("cxxmodules")
         localcache.set("config", "recheck", true)
         localcache.save()
 
@@ -373,9 +372,12 @@ force to build in current directory via run `xmake -P .`]], os.projectdir())
     end
 
     -- translate the build directory
-    local buildir = config.get("buildir")
-    if buildir and path.is_absolute(buildir) then
-        config.set("buildir", path.relative(buildir, project.directory()), {readonly = true, force = true})
+    local builddir = config.get("builddir") or config.get("buildir")
+    if config.get("buildir") then
+        wprint("`xmake f --buildir=` has been deprecated, please use `xmake f -o/--builddir=`")
+    end
+    if builddir and path.is_absolute(builddir) then
+        config.set("builddir", path.relative(builddir, project.directory()), {readonly = true, force = true})
     end
 
     -- only config for building project using third-party buildsystem

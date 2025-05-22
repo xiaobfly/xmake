@@ -32,11 +32,22 @@ import("filter")
 import("xpack_component")
 
 -- define module
-local xpack = xpack or object {_init = {"_name", "_info"}}
+local xpack = xpack or object {_init = {"_name", "_info", "_namespace"}}
 
 -- get name
 function xpack:name()
     return self._name
+end
+
+-- get namespace
+function xpack:namespace()
+    return self._namespace
+end
+
+-- get fullname
+function xpack:fullname()
+    local namespace = self:namespace()
+    return namespace and namespace .. "::" .. self:name() or self:name()
 end
 
 -- get values
@@ -131,7 +142,7 @@ function xpack:targets()
         local targetnames = self:get("targets")
         if targetnames then
             for _, name in ipairs(targetnames) do
-                local target = project.target(name)
+                local target = project.target(name, {namespace = self:namespace()})
                 if target then
                     table.insert(targets, target)
                 else
@@ -148,7 +159,7 @@ end
 function xpack:target(name)
     local targetnames = self:get("targets")
     if targetnames and table.contains(table.wrap(targetnames), name) then
-        return project.target(name)
+        return project.target(name, {namespace = self:namespace()})
     end
 end
 
@@ -245,15 +256,21 @@ function xpack:with_binary()
 end
 
 -- get the build directory
+function xpack:builddir()
+    return path.join(config.builddir(), ".xpack", self:name())
+end
+
+-- get the build directory (deprecated)
 function xpack:buildir()
-    return path.join(config.buildir(), ".xpack", self:name())
+    wprint("xpack:buildir() has been deprecated, please use xpack:builddir()")
+    return self:builddir()
 end
 
 -- get the output directory
 function xpack:outputdir()
     local outputdir = option.get("outputdir")
     if outputdir == nil then
-        outputdir = path.join(config.buildir(), "xpack", self:name())
+        outputdir = path.join(config.builddir(), "xpack", self:name())
     end
     return outputdir
 end
@@ -409,7 +426,7 @@ end
 -- get the installed root directory, this is just a temporary sandbox installation path,
 -- we may replace it with the actual installation path in the specfile
 function xpack:install_rootdir()
-    return path.join(self:buildir(), "installed", self:format())
+    return path.join(self:builddir(), "installed", self:format())
 end
 
 -- get the installed directory
@@ -429,7 +446,7 @@ end
 
 -- get the source root directory
 function xpack:source_rootdir()
-    return path.join(self:buildir(), "source", self:format())
+    return path.join(self:builddir(), "source", self:format())
 end
 
 -- get the source directory
@@ -506,7 +523,14 @@ end
 -- new a xpack, and we need to clone scope info,
 -- because two different format packages maybe have same scope
 function _new(name, info)
-    return xpack {name, info:clone()}
+    local parts = name:split("::", {plain = true})
+    name = parts[#parts]
+    table.remove(parts)
+    local namespace
+    if #parts > 0 then
+        namespace = table.concat(parts, "::")
+    end
+    return xpack {name, info:clone(), namespace}
 end
 
 -- get xpack packages

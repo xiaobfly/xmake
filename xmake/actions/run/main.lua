@@ -29,6 +29,8 @@ import("devel.debugger")
 import("async.runjobs")
 import("private.action.run.runenvs")
 import("private.service.remote_build.action", {alias = "remote_build_action"})
+import("private.detect.check_targetname")
+import("lib.detect.find_tool")
 
 -- run target
 function _do_run_target(target)
@@ -49,6 +51,12 @@ function _do_run_target(target)
 
     -- get run arguments
     local args = table.wrap(option.get("arguments") or target:get("runargs"))
+
+    if not is_host("windows") and target:is_plat("windows") then
+        local wine = assert(find_tool("wine"), "wine not found!")
+        table.insert(args, 1, targetfile)
+        targetfile = wine.program
+    end
 
     -- debugging?
     if option.get("debug") then
@@ -86,20 +94,6 @@ function _add_target_pkgenvs(target, targets_added)
     for _, dep in ipairs(target:orderdeps()) do
         _add_target_pkgenvs(dep, targets_added)
     end
-end
-
--- find target names matching a specific name
-function _find_matching_target_names(targetname)
-    targetname = targetname:lower()
-    local matching_targetnames = {}
-    for _, target in ipairs(project.ordertargets()) do
-        if target:name():lower():find(targetname, 1, true) then
-            table.insert(matching_targetnames, target:name())
-        end
-    end
-
-    table.sort(matching_targetnames)
-    return matching_targetnames
 end
 
 -- run the given target
@@ -156,17 +150,7 @@ function _check_targets(targetname, group_pattern)
     -- get targets
     local targets = {}
     if targetname then
-        local target = project.target(targetname)
-        if not target then
-            -- check if the name is part of other target to help
-            local possible_targetnames = _find_matching_target_names(targetname)
-            local errors = targetname .. " is not a valid target name for this project"
-            if #possible_targetnames > 0 then
-                errors = errors .. "\nlist of valid target names close to your input:\n - " .. table.concat(possible_targetnames, '\n - ')
-            end
-            raise(errors)
-        end
-
+        local target = assert(check_targetname(targetname))
         table.insert(targets, target)
     else
         for _, target in ipairs(project.ordertargets()) do
@@ -212,7 +196,7 @@ function main()
         -- we need clear the previous config and reload it
         -- to avoid trigger recheck configs
         config.clear()
-        task.run("build", {target = option.get("target"), all = option.get("all")})
+        task.run("build", {target = option.get("target"), all = option.get("all")}, {disable_dump = true})
     end
 
     -- load targets

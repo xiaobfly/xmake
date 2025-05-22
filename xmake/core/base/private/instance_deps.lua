@@ -46,6 +46,12 @@ function instance_deps.load_deps(instance, instances, deps, orderdeps, depspath,
         -- @see https://github.com/xmake-io/xmake/issues/3144
         local depname = plaindeps[total + 1 - idx]
         local depinst = instances[depname]
+        if depinst == nil and instance.namespace then
+            local namespace = instance:namespace()
+            if namespace then
+                depinst = instances[namespace .. "::" .. depname]
+            end
+        end
         if depinst then
             local continue_walk = true
             if walkdep then
@@ -75,10 +81,16 @@ end
 
 -- sort the given instance with deps
 function instance_deps._sort_instance(instance, instances, orderinstances, instancerefs, depspath)
-    if not instancerefs[instance:name()] then
-        instancerefs[instance:name()] = true
+    if not instancerefs[instance:fullname()] then
+        instancerefs[instance:fullname()] = true
         for _, depname in ipairs(table.wrap(instance:get("deps"))) do
             local depinst = instances[depname]
+            if depinst == nil and instance.namespace then
+                local namespace = instance:namespace()
+                if namespace then
+                    depinst = instances[namespace .. "::" .. depname]
+                end
+            end
             if depinst then
                 local depspath_sub
                 if depspath then
@@ -89,7 +101,7 @@ function instance_deps._sort_instance(instance, instances, orderinstances, insta
                             os.raise("circular dependency(%s) detected!", table.concat(circular_deps, ", "))
                         end
                     end
-                    depspath_sub = table.join(depspath, depname)
+                    depspath_sub = table.join(depspath, depinst:fullname())
                 end
                 instance_deps._sort_instance(depinst, instances, orderinstances, instancerefs, depspath_sub)
             end
@@ -111,7 +123,7 @@ function instance_deps.sort(instances)
     local refs = {}
     local orderinstances = {}
     for _, instance in table.orderpairs(instances) do
-        instance_deps._sort_instance(instance, instances, orderinstances, refs, {instance:name()})
+        instance_deps._sort_instance(instance, instances, orderinstances, refs, {instance:fullname()})
     end
     return orderinstances
 end

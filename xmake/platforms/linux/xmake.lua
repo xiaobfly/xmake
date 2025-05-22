@@ -21,7 +21,7 @@
 platform("linux")
     set_os("linux")
     set_hosts("macosx", "linux", "windows", "bsd")
-    set_archs("i386", "x86_64", "armv7", "armv7s", "arm64-v8a", "mips", "mips64", "mipsel", "mips64el", "loong64")
+    set_archs("i386", "x86_64", "armv7", "armv7s", "arm64", "mips", "mips64", "mipsel", "mips64el", "loong64")
 
     set_formats("static", "lib$(name).a")
     set_formats("object", "$(name).o")
@@ -38,6 +38,7 @@ platform("linux")
                 ,   {nil, "cuda",           "kv", "auto",       "The Cuda SDK Directory"            }
                 ,   {category = "Qt SDK Configuration"                                              }
                 ,   {nil, "qt",             "kv", "auto",       "The Qt SDK Directory"              }
+                ,   {nil, "qt_host",        "kv", "auto",       "The Qt Host SDK Directory"         }
                 ,   {nil, "qt_sdkver",      "kv", "auto",       "The Qt SDK Version"                }
                 ,   {category = "Vcpkg Configuration"                                               }
                 ,   {nil, "vcpkg",          "kv", "auto",       "The Vcpkg Directory"               }
@@ -49,6 +50,7 @@ platform("linux")
                 ,   {nil, "cuda",           "kv", "auto",       "The Cuda SDK Directory"            }
                 ,   {category = "Qt SDK Configuration"                                              }
                 ,   {nil, "qt",             "kv", "auto",       "The Qt SDK Directory"              }
+                ,   {nil, "qt_host",        "kv", "auto",       "The Qt Host SDK Directory"         }
                 ,   {category = "Vcpkg Configuration"                                               }
                 ,   {nil, "vcpkg",          "kv", "auto",       "The Vcpkg Directory"               }
                 }

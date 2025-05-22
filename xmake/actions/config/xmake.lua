@@ -165,7 +165,7 @@ task("config")
     set_category("action")
     on_run("main")
     set_menu {
-                usage = "xmake config|f [options] [target]",
+                usage = "xmake config|f [options]",
                 description = "Configure the project.",
                 shortname = 'f',
                 options = {
@@ -213,6 +213,12 @@ task("config")
                                                           , "    - xmake f --toolchain=[cross|llvm|sdcc ..] --sdk=/xxx"
                                                           , "    - run `xmake show -l toolchains` to get all toolchains"
                                                           , values = _toolchain_values},
+                    {nil, "toolchain_host", "kv", nil,      "Set host toolchain name, it's only for building packages on host machine."
+                                                          , "e.g. "
+                                                          , "    - xmake f --toolchain_host=clang"
+                                                          , "    - xmake f --toolchain_host=[cross|llvm|sdcc ..] --sdk=/xxx"
+                                                          , "    - run `xmake show -l toolchains` to get all toolchains"
+                                                          , values = _toolchain_values},
                     {nil, "runtimes", "kv", nil,          "Set the compiler runtime library."
                                                           , "e.g. "
                                                           , "    - xmake f --runtimes=MTd"
@@ -238,7 +244,8 @@ task("config")
                     {nil, "tryconfigs", "kv", nil       ,   "Set the extra configurations of the third-party buildsystem for the try-build mode.",
                                                             "e.g.",
                                                             "    - xmake f --trybuild=autoconf --tryconfigs='--enable-shared=no'"},
-                    {'o', "buildir",    "kv", "build"   , "Set build directory."},
+                    {'o', "builddir",   "kv", "build"   , "Set build directory."},
+                    {nil, "buildir",    "kv", nil       , "Set build directory. (deprecated)"},
                     {},
                     {category = "Project Configuration"},
                     _project_menu_options}}

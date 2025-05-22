@@ -39,7 +39,7 @@ toolchain("armclang")
             toolchain:config_set("sdkdir", mdk.sdkdir_armclang)
             -- different assembler choices for different versions of armclang
             local armclang = find_tool("armclang", {version = true, force = true, paths = path.join(mdk.sdkdir_armclang, "bin")})
-            if armclang and semver.compare(armclang.version, "6.13") > 0 then
+            if armclang and armclang.version and semver.compare(armclang.version, "6.13") > 0 then
                 toolchain:config_set("toolset_as", "armclang")
             else
                 toolchain:config_set("toolset_as", "armasm")
@@ -53,23 +53,18 @@ toolchain("armclang")
         local arch = toolchain:arch()
         if arch then
             local arch_cpu     = arch:lower()
-            local arch_cpu_ld  = ""
-            local arch_target  = ""
-            if arch_cpu:startswith("cortex-m") then
-                arch_cpu_ld = arch_cpu:replace("cortex-m", "Cortex-M", {plain = true})
-                arch_target  = "arm-arm-none-eabi"
-            end
-            if arch_cpu:startswith("cortex-a") then
-                arch_cpu_ld = arch_cpu:replace("cortex-a", "Cortex-A", {plain = true})
-                arch_target  = "aarch64-arm-none-eabi"
-            end
             local as = toolchain:config("toolset_as")
             toolchain:set("toolset", "as", as)
-            toolchain:add("cxflags", "--target=" .. arch_target)
+            toolchain:add("cxflags", "--target=arm-arm-none-eabi")
             toolchain:add("cxflags", "-mcpu="   .. arch_cpu)
-            toolchain:add("asflags", "--target=" .. arch_target)
-            toolchain:add("asflags", (as == "armclang" and "-mcpu=" or "--cpu=") .. arch_cpu)
-            toolchain:add("ldflags", "--cpu "   .. arch_cpu_ld)
+            if as == "armclang" then
+                toolchain:add("asflags", "--target=arm-arm-none-eabi")
+                toolchain:add("asflags", "-mcpu=" .. arch_cpu)
+                toolchain:add("asflags", "-masm=auto")
+            else
+                toolchain:add("asflags", "--cpu=" .. arch_cpu)
+            end
+            toolchain:add("ldflags", "--cpu="   .. arch_cpu)
         end
     end)
 

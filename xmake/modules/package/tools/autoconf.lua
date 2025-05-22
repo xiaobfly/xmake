@@ -21,11 +21,10 @@
 -- imports
 import("core.base.option")
 import("core.project.config")
-import("core.tool.linker")
-import("core.tool.compiler")
 import("core.tool.toolchain")
 import("core.cache.memcache")
 import("lib.detect.find_tool")
+import("private.utils.toolchain", {alias = "toolchain_utils"})
 
 -- translate paths
 function _translate_paths(paths)
@@ -61,7 +60,11 @@ end
 function _translate_windows_bin_path(bin_path)
     if bin_path then
         local argv = os.argv(bin_path)
-        argv[1] = path.unix(argv[1]) .. ".exe"
+        argv[1] = path.unix(argv[1])
+        local path_lower = argv[1]:lower()
+        if not path_lower:endswith(".exe") and not path_lower:endswith(".cmd") and not path_lower:endswith(".bat") then
+            argv[1] = argv[1] .. ".exe"
+        end
         return os.args(argv)
     end
 end
@@ -78,56 +81,54 @@ function _get_msvc_runenvs(package)
     return os.joinenvs(_get_msvc(package):runenvs())
 end
 
--- map compiler flags
-function _map_compflags(package, langkind, name, values)
-    return compiler.map_flags(langkind, name, values, {target = package})
-end
-
--- map linker flags
-function _map_linkflags(package, targetkind, sourcekinds, name, values)
-    return linker.map_flags(targetkind, sourcekinds, name, values, {target = package})
-end
-
--- is cross compilation?
-function _is_cross_compilation(package)
-    if not package:is_plat(os.subhost()) then
-        return true
-    end
-    if package:is_plat("macosx") and not package:is_arch(os.subarch()) then
-        return true
-    end
-    return false
-end
-
 -- get memcache
 function _memcache()
     return memcache.cache("package.tools.autoconf")
 end
 
+-- has flag ?
+function _has_flag(package, flag)
+    local flag_name = flag:gsub("-", "")
+    local has_flag = _memcache():get2(tostring(package), flag_name)
+    if has_flag == nil then
+        local result = try {function() return os.iorunv("./configure", {"--help"}, {shell = true}) end}
+        if result and result:find(flag, 1, true) then
+            has_flag = true
+        end
+        has_flag = has_flag or false
+        _memcache():set2(tostring(package), flag_name, has_flag)
+    end
+    return has_flag
+end
+
+
 -- has `--with-pic`?
 function _has_with_pic(package)
-    local has_with_pic = _memcache():get2(tostring(package), "with_pic")
-    if has_with_pic == nil then
-        local result = try {function() return os.iorunv("./configure", {"--help"}, {shell = true}) end}
-        if result and result:find("--with-pic", 1, true) then
-            has_with_pic = true
-        end
-        has_with_pic = has_with_pic or false
-        _memcache():set2(tostring(package), "with_pic", has_with_pic)
-    end
-    return has_with_pic
+    return _has_flag(package, "--with-pic")
+end
+
+-- has `--enable-debug`?
+function _has_enable_debug(package)
+    return _has_flag(package, "--enable-debug")
+end
+
+-- has `--enable-static` and `--enable-shared`?
+function _has_enable_kind(package)
+    return _has_flag(package, "--enable-static") and _has_flag(package, "--enable-shared")
+end
+
+-- has `--disable-static` and `--disable-shared`?
+function _has_disable_kind(package)
+    return _has_flag(package, "--disable-static") and _has_flag(package, "--disable-shared")
 end
 
 -- get configs
 function _get_configs(package, configs)
-
-    -- add prefix
     local configs = configs or {}
     table.insert(configs, "--prefix=" .. _translate_paths(package:installdir()))
 
-    -- add host for cross-complation
-    if not configs.host and _is_cross_compilation(package) then
-        if package:is_plat("iphoneos", "macosx") then
+    if not configs.host then
+        if package:is_plat("iphoneos", "macosx") and package:is_cross() then
             local triples =
             {
                 arm64  = "aarch64-apple-darwin",
@@ -154,11 +155,26 @@ function _get_configs(package, configs)
                 mips64          = "mips64-linux-android"    -- removed in ndk r17
             }
             table.insert(configs, "--host=" .. (triples[package:arch()] or triples["armeabi-v7a"]))
-        elseif package:is_plat("mingw") then
+        elseif package:is_plat("mingw") then -- we always add host for mingw
             local triples =
             {
                 i386   = "i686-w64-mingw32",
                 x86_64 = "x86_64-w64-mingw32"
+            }
+            table.insert(configs, "--host=" .. (triples[package:arch()] or triples.i386))
+        elseif package:is_plat("linux") and package:is_cross() then
+            local triples =
+            {
+                ["arm64-v8a"] = "aarch64-linux-gnu",
+                arm64 = "aarch64-linux-gnu",
+                i386   = "i686-linux-gnu",
+                x86_64 = "x86_64-linux-gnu",
+                armv7 = "arm-linux-gnueabihf",
+                mips = "mips-linux-gnu",
+                mips64 = "mips64-linux-gnu",
+                mipsel = "mipsel-linux-gnu",
+                mips64el = "mips64el-linux-gnu",
+                loong64 = "loongarch64-linux-gnu"
             }
             table.insert(configs, "--host=" .. (triples[package:arch()] or triples.i386))
         elseif package:is_plat("cross") and package:targetos() then
@@ -172,25 +188,55 @@ function _get_configs(package, configs)
             table.insert(configs, "--host=" .. host)
         end
     end
-    if package:is_plat("linux", "bsd") and
+    if not package:is_plat("windows", "mingw") and
         package:config("pic") ~= false and _has_with_pic(package) then
         table.insert(configs, "--with-pic")
+    end
+    if package:is_debug() and _has_enable_debug(package) then
+        table.insert(configs, "--enable-debug")
+    end
+    if package:is_library() then
+        if _has_enable_kind(package) then
+            table.insert(configs, "--enable-shared=" .. (package:config("shared") and "yes" or "no"))
+            table.insert(configs, "--enable-static=" .. (package:config("shared") and "no" or "yes"))
+        elseif _has_disable_kind(package) then
+            if package:config("shared") then
+                table.insert(configs, "--disable-static")
+            else
+                table.insert(configs, "--disable-shared")
+            end
+        end
     end
     return configs
 end
 
 -- get cflags from package deps
 function _get_cflags_from_packagedeps(package, opt)
-    local result = {}
+    local values
     for _, depname in ipairs(opt.packagedeps) do
-        local dep = type(depname) ~= "string" and depname or package:dep(depname)
+        local dep = type(depname) ~= "string" and depname or package:librarydep(depname)
         if dep then
             local fetchinfo = dep:fetch()
             if fetchinfo then
-                table.join2(result, _map_compflags(package, "cxx", "define", fetchinfo.defines))
-                table.join2(result, _translate_paths(_map_compflags(package, "cxx", "includedir", fetchinfo.includedirs)))
-                table.join2(result, _translate_paths(_map_compflags(package, "cxx", "sysincludedir", fetchinfo.sysincludedirs)))
+                if values then
+                    values = values .. fetchinfo
+                else
+                    values = fetchinfo
+                end
             end
+        end
+    end
+    -- @see https://github.com/xmake-io/xmake-repo/pull/4973#issuecomment-2295890196
+    local result = {}
+    if values then
+        if values.defines then
+            table.join2(result, toolchain_utils.map_compflags_for_package(package, "cxx", "define", values.defines))
+        end
+        if values.includedirs then
+            table.join2(result, _translate_paths(toolchain_utils.map_compflags_for_package(package, "cxx", "includedir", values.includedirs)))
+        end
+        if values.sysincludedirs then
+            table.join2(result, _translate_paths(toolchain_utils.map_compflags_for_package(package, "cxx", "sysincludedir", values.sysincludedirs)))
         end
     end
     return result
@@ -198,17 +244,33 @@ end
 
 -- get ldflags from package deps
 function _get_ldflags_from_packagedeps(package, opt)
-    local result = {}
+    local values
     for _, depname in ipairs(opt.packagedeps) do
-        local dep = type(depname) ~= "string" and depname or package:dep(depname)
+        local dep = type(depname) ~= "string" and depname or package:librarydep(depname)
         if dep then
             local fetchinfo = dep:fetch()
             if fetchinfo then
-                table.join2(result, _translate_paths(_map_linkflags(package, "binary", {"cxx"}, "linkdir", fetchinfo.linkdirs)))
-                table.join2(result, _map_linkflags(package, "binary", {"cxx"}, "link", fetchinfo.links))
-                table.join2(result, _translate_paths(_map_linkflags(package, "binary", {"cxx"}, "syslink", fetchinfo.syslinks)))
-                table.join2(result, _map_linkflags(package, "binary", {"cxx"}, "framework", fetchinfo.frameworks))
+                if values then
+                    values = values .. fetchinfo
+                else
+                    values = fetchinfo
+                end
             end
+        end
+    end
+    local result = {}
+    if values then
+        if values.linkdirs then
+            table.join2(result, _translate_paths(toolchain_utils.map_linkflags_for_package(package, "binary", {"cxx"}, "linkdir", values.linkdirs)))
+        end
+        if values.links then
+            table.join2(result, toolchain_utils.map_linkflags_for_package(package, "binary", {"cxx"}, "link", values.links))
+        end
+        if values.syslinks then
+            table.join2(result, _translate_paths(toolchain_utils.map_linkflags_for_package(package, "binary", {"cxx"}, "syslink", values.syslinks)))
+        end
+        if values.frameworks then
+            table.join2(result, toolchain_utils.map_linkflags_for_package(package, "binary", {"cxx"}, "framework", values.frameworks))
         end
     end
     return result
@@ -220,7 +282,7 @@ function buildenvs(package, opt)
     local envs = {}
     local cross = false
     local cflags, cxxflags, cppflags, asflags, ldflags, shflags, arflags
-    if not _is_cross_compilation(package) and not package:config("toolchains") then
+    if not package:is_cross() and not package:config("toolchains") then
         cppflags = {}
         cflags   = table.join(table.wrap(package:config("cxflags")), package:config("cflags"))
         cxxflags = table.join(table.wrap(package:config("cxflags")), package:config("cxxflags"))
@@ -275,21 +337,21 @@ function buildenvs(package, opt)
         table.join2(cxxflags, _get_cflags_from_packagedeps(package, opt))
         table.join2(cppflags, _get_cflags_from_packagedeps(package, opt))
         table.join2(ldflags,  _get_ldflags_from_packagedeps(package, opt))
-        table.join2(cflags,   _map_compflags(package, "c", "define", defines))
-        table.join2(cflags,   _map_compflags(package, "c", "includedir", includedirs))
-        table.join2(cflags,   _map_compflags(package, "c", "sysincludedir", sysincludedirs))
-        table.join2(asflags,  _map_compflags(package, "as", "define", defines))
-        table.join2(asflags,  _map_compflags(package, "as", "includedir", includedirs))
-        table.join2(asflags,  _map_compflags(package, "as", "sysincludedir", sysincludedirs))
-        table.join2(cxxflags, _map_compflags(package, "cxx", "define", defines))
-        table.join2(cxxflags, _map_compflags(package, "cxx", "includedir", includedirs))
-        table.join2(cxxflags, _map_compflags(package, "cxx", "sysincludedir", sysincludedirs))
-        table.join2(ldflags,  _map_linkflags(package, "binary", {"cxx"}, "link", links))
-        table.join2(ldflags,  _map_linkflags(package, "binary", {"cxx"}, "syslink", syslinks))
-        table.join2(ldflags,  _map_linkflags(package, "binary", {"cxx"}, "linkdir", linkdirs))
-        table.join2(shflags,  _map_linkflags(package, "shared", {"cxx"}, "link", links))
-        table.join2(shflags,  _map_linkflags(package, "shared", {"cxx"}, "syslink", syslinks))
-        table.join2(shflags,  _map_linkflags(package, "shared", {"cxx"}, "linkdir", linkdirs))
+        table.join2(cflags,   toolchain_utils.map_compflags_for_package(package, "c", "define", defines))
+        table.join2(cflags,   toolchain_utils.map_compflags_for_package(package, "c", "includedir", includedirs))
+        table.join2(cflags,   toolchain_utils.map_compflags_for_package(package, "c", "sysincludedir", sysincludedirs))
+        table.join2(asflags,  toolchain_utils.map_compflags_for_package(package, "as", "define", defines))
+        table.join2(asflags,  toolchain_utils.map_compflags_for_package(package, "as", "includedir", includedirs))
+        table.join2(asflags,  toolchain_utils.map_compflags_for_package(package, "as", "sysincludedir", sysincludedirs))
+        table.join2(cxxflags, toolchain_utils.map_compflags_for_package(package, "cxx", "define", defines))
+        table.join2(cxxflags, toolchain_utils.map_compflags_for_package(package, "cxx", "includedir", includedirs))
+        table.join2(cxxflags, toolchain_utils.map_compflags_for_package(package, "cxx", "sysincludedir", sysincludedirs))
+        table.join2(ldflags,  toolchain_utils.map_linkflags_for_package(package, "binary", {"cxx"}, "link", links))
+        table.join2(ldflags,  toolchain_utils.map_linkflags_for_package(package, "binary", {"cxx"}, "syslink", syslinks))
+        table.join2(ldflags,  toolchain_utils.map_linkflags_for_package(package, "binary", {"cxx"}, "linkdir", linkdirs))
+        table.join2(shflags,  toolchain_utils.map_linkflags_for_package(package, "shared", {"cxx"}, "link", links))
+        table.join2(shflags,  toolchain_utils.map_linkflags_for_package(package, "shared", {"cxx"}, "syslink", syslinks))
+        table.join2(shflags,  toolchain_utils.map_linkflags_for_package(package, "shared", {"cxx"}, "linkdir", linkdirs))
         envs.CC        = package:build_getenv("cc")
         envs.AS        = package:build_getenv("as")
         envs.AR        = package:build_getenv("ar")
@@ -298,7 +360,7 @@ function buildenvs(package, opt)
         envs.CPP       = package:build_getenv("cpp")
         envs.RANLIB    = package:build_getenv("ranlib")
     end
-    if package:is_plat("linux", "bsd") and
+    if not package:is_plat("windows", "mingw") and
         package:config("pic") ~= false and not _has_with_pic(package) then
         table.insert(cflags, "-fPIC")
         table.insert(cxxflags, "-fPIC")
@@ -310,13 +372,9 @@ function buildenvs(package, opt)
     end
     local runtimes = package:runtimes()
     if runtimes then
-        local fake_target = {is_shared = function(_) return false end,
-                             sourcekinds = function(_) return "cxx" end}
-        table.join2(cxxflags, _map_compflags(fake_target, "cxx", "runtime", runtimes))
-        table.join2(ldflags, _map_linkflags(fake_target, "binary", {"cxx"}, "runtime", runtimes))
-        fake_target = {is_shared = function(_) return true end,
-                       sourcekinds = function(_) return "cxx" end}
-        table.join2(shflags, _map_linkflags(fake_target, "shared", {"cxx"}, "runtime", runtimes))
+        table.join2(cxxflags, toolchain_utils.map_compflags_for_package(package, "cxx", "runtime", runtimes))
+        table.join2(ldflags, toolchain_utils.map_linkflags_for_package(package, "binary", {"cxx"}, "runtime", runtimes))
+        table.join2(shflags, toolchain_utils.map_linkflags_for_package(package, "shared", {"cxx"}, "runtime", runtimes))
     end
     if package:config("asan") then
         table.join2(cflags, package:_generate_sanitizer_configs("address", "cc").cflags)
@@ -341,7 +399,7 @@ function buildenvs(package, opt)
     end
     if ldflags or shflags then
         -- autoconf does not use SHFLAGS
-        envs.LDFLAGS   = table.concat(_translate_paths(table.join(ldflags or {}, shflags)), ' ')
+        envs.LDFLAGS   = table.concat(table.reverse_unique(_translate_paths(table.join(ldflags or {}, shflags))), ' ')
     end
 
     -- cross-compilation? pass the full build environments
@@ -363,7 +421,8 @@ function buildenvs(package, opt)
                 -- force to apply shflags on macosx https://gmplib.org/manual/Known-Build-Problems
                 envs.CC = envs.CC .. " -arch " .. package:arch()
             end
-            if package:is_plat("cross") or package:has_tool("ar", "ar", "emar") then
+            -- android r27 will use llmv-ar instead of ar, https://github.com/xmake-io/xmake/issues/6206
+            if package:is_plat("cross") or package:has_tool("ar", "ar", "emar", "llvm_ar") then
                 -- only for cross-toolchain
                 envs.CXX = package:build_getenv("cxx")
                 if not envs.ARFLAGS or envs.ARFLAGS == "" then
@@ -390,7 +449,14 @@ function buildenvs(package, opt)
             name = name:gsub("gcc-%d+", "ld")
             name = name:gsub("g%+%+$", "ld")
             name = name:gsub("g%+%+%-%d+", "ld")
-            envs.LD = dir and path.join(dir, name) or name
+            if dir and os.isfile(path.join(dir, name)) then
+                envs.LD = path.join(dir, name)
+            else
+                local ld = find_tool("ld")
+                if ld and path.filename(ld.program) == name then
+                    envs.LD = ld.program
+                end
+            end
         end
         -- we need use clang++ as cxx, autoconf will use it as linker
         -- https://github.com/xmake-io/xmake/issues/2170
@@ -404,12 +470,15 @@ function buildenvs(package, opt)
             name = name:gsub("gcc%-", "g++-")
             envs.CXX = dir and path.join(dir, name) or name
         end
-    elseif package:is_plat("windows") and not package:config("toolchains") then
+    end
+    if package:is_plat("windows") and not package:config("toolchains") then
         envs.PATH = os.getenv("PATH") -- we need to reserve PATH on msys2
         envs = os.joinenvs(envs, _get_msvc(package):runenvs())
     end
+
     if is_host("windows") then
         envs.CC       = _translate_windows_bin_path(envs.CC)
+        envs.CXX      = _translate_windows_bin_path(envs.CXX)
         envs.AS       = _translate_windows_bin_path(envs.AS)
         envs.AR       = _translate_windows_bin_path(envs.AR)
         envs.LD       = _translate_windows_bin_path(envs.LD)

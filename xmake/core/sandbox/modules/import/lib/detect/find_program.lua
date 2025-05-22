@@ -74,15 +74,20 @@ end
 
 -- check program
 function sandbox_lib_detect_find_program._check(program, opt)
+    opt = opt or {}
     local findname = program
     if os.subhost() == "windows" then
-        if not program:endswith(".exe") and not program:endswith(".cmd") and not program:endswith(".bat") then
+        local ext = path.extension(program):lower()
+        if not opt.shell and ext ~= ".exe" and ext ~= ".cmd" and ext ~= ".bat" then
             findname = program .. ".exe"
         end
     elseif os.subhost() == "msys" and os.isfile(program) and os.filesize(program) < 256 then
         -- only a sh script on msys2? e.g. c:/msys64/usr/bin/7z
         -- we need to use sh to wrap it, otherwise os.exec cannot run it
-        program = "sh " .. program
+        local ext = path.extension(program):lower()
+        if ext ~= ".exe" and ext ~= ".cmd" and ext ~= ".bat" then
+            program = "sh " .. program
+        end
         findname = program
     end
     if sandbox_lib_detect_find_program._do_check(findname, opt) then
@@ -235,18 +240,12 @@ function sandbox_lib_detect_find_program._find(name, paths, opt)
         end
     end
 
-    -- attempt to find it directly in current environment
-    --
-    -- @note must be detected at the end, because full path is more accurate
-    --
-    local program_path_real = sandbox_lib_detect_find_program._check(name, opt)
-    if program_path_real then
-        return program_path_real
-    end
-
     -- attempt to find it use `where.exe program.exe` command
-    --
     -- and we need to add `.exe` suffix to avoid find some incorrect programs. e.g. pkg-config.bat
+    --
+    -- it will return the absolute path, so we call it first
+    -- https://github.com/xmake-io/xmake/discussions/6223#discussioncomment-12537122
+    --
     if os.host() == "windows" then
         local program_name = name:lower()
         if not program_name:endswith(".exe") then
@@ -264,6 +263,15 @@ function sandbox_lib_detect_find_program._find(name, paths, opt)
                 end
             end
         end
+    end
+
+    -- attempt to find it directly in current environment
+    --
+    -- @note must be detected at the end, because full path is more accurate
+    --
+    local program_path_real = sandbox_lib_detect_find_program._check(name, opt)
+    if program_path_real then
+        return program_path_real
     end
 end
 

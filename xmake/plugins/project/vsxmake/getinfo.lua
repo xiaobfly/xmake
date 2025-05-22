@@ -131,7 +131,7 @@ function _make_targetinfo(mode, arch, target)
 
     -- save dirs
     targetinfo.targetdir     = _make_dirs(target:get("targetdir"))
-    targetinfo.buildir       = _make_dirs(config.get("buildir"))
+    targetinfo.builddir      = _make_dirs(config.get("builddir") or config.get("buildir"))
     targetinfo.rundir        = _make_dirs(target:get("rundir"))
     targetinfo.configdir     = _make_dirs(os.getenv("XMAKE_CONFIGDIR"))
     targetinfo.configfiledir = _make_dirs(target:get("configdir"))
@@ -155,7 +155,7 @@ function _make_targetinfo(mode, arch, target)
         -- fix c++17 to cxx17 for Xmake.props
         targetinfo.languages = targetinfo.languages:replace("c++", "cxx", {plain = true})
     end
-    if target:is_phony() or target:is_headeronly() or target:is_moduleonly() then
+    if target:is_phony() or target:is_headeronly() or target:is_moduleonly() or target:is_object() then
         return targetinfo
     end
 
@@ -301,18 +301,25 @@ function _make_vsinfo_groups()
     for targetname, target in table.orderpairs(project.targets()) do
         local group_path = target:get("group")
         if group_path and #(group_path:trim()) > 0 then
+            group_path = path.normalize(group_path)
             local group_name = path.filename(group_path)
             local group_names = path.split(group_path)
+            local group_current_path
             for idx, name in ipairs(group_names) do
-                local group = groups["group." .. name] or {}
+                group_current_path = group_current_path and path.join(group_current_path, name) or name
+                local group = groups["group." .. group_current_path] or {}
                 group.group = name
-                group.group_id = hash.uuid4("group." .. name)
+                group.group_id = hash.uuid4("group." .. group_current_path)
                 if idx > 1 then
-                    group_deps["group_dep." .. name] = {current_id = group.group_id, parent_id = hash.uuid4("group." .. group_names[idx - 1])}
+                    group_deps["group_dep." .. group_current_path] = {
+                        current_id = group.group_id,
+                        parent_id = hash.uuid4("group." .. path.directory(group_current_path))}
                 end
-                groups["group." .. name] = group
+                groups["group." .. group_current_path] = group
             end
-            group_deps["group_dep.target." .. targetname] = {current_id = hash.uuid4(targetname), parent_id = groups["group." .. group_name].group_id}
+            group_deps["group_dep.target." .. targetname] = {
+                current_id = hash.uuid4(targetname),
+                parent_id = groups["group." .. group_path].group_id}
         end
     end
     return groups, group_deps
@@ -353,9 +360,6 @@ function _make_filter(filepath, target, vcxprojdir)
                                 filter = path.normalize(path.directory(fileitem))
                             end
                         end
-                        if filter and filter == '.' then
-                            filter = nil
-                        end
                         goto found_filter
                     end
                 end
@@ -374,9 +378,9 @@ function _make_filter(filepath, target, vcxprojdir)
         if filter then
             filter = _strip_dotdirs(filter)
         end
-        if filter and filter == '.' then
-            filter = nil
-        end
+    end
+    if filter and filter == '.' then
+        filter = nil
     end
     return filter
 end
@@ -391,6 +395,7 @@ function main(outputdir, vsinfo)
     -- init solution directory
     vsinfo.solution_dir = path.absolute(path.join(outputdir, "vsxmake" .. vsinfo.vstudio_version))
     vsinfo.programdir = _make_dirs(xmake.programdir())
+    vsinfo.programfile = xmake.programfile()
     vsinfo.projectdir = project.directory()
     vsinfo.sln_projectfile = path.relative(project.rootfile(), vsinfo.solution_dir)
     local projectfile = path.filename(project.rootfile())
@@ -420,7 +425,7 @@ function main(outputdir, vsinfo)
     -- init config flags
     local flags = {}
     for k, v in table.orderpairs(localcache.get("config", "options")) do
-        if k ~= "plat" and k ~= "mode" and k ~= "arch" and k ~= "clean" and k ~= "buildir" then
+        if k ~= "plat" and k ~= "mode" and k ~= "arch" and k ~= "clean" and k ~= "builddir" and k ~= "buildir" then
             table.insert(flags, "--" .. k .. "=" .. tostring(v))
         end
     end
@@ -580,7 +585,7 @@ function main(outputdir, vsinfo)
         if target:get("default") == true then
             table.insert(targetnames, 1, targetname)
         elseif target:is_binary() then
-            local first_target = targetnames[1] and project.target(targetnames[1])
+            local first_target = targetnames[1] and project.target(targetnames[1], {namespace = target:namespace()})
             if not first_target or first_target:get("default") ~= true then
                 table.insert(targetnames, 1, targetname)
             else

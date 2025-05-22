@@ -50,8 +50,13 @@ function main(opt)
             return (val("reg " .. reg) or ""):match("\"(.-)\"")
         end
     end
+    opt.paths = table.wrap(opt.paths)
     opt.check  = opt.check or function (program) if not os.isfile(program) then raise() end end
 
     -- find program
-    return find_program(opt.program or "windbg", opt)
+    local program = find_program(opt.program or "windbg", opt)
+    if not program then
+        program = find_program("windbgx", opt)
+    end
+    return program
 end

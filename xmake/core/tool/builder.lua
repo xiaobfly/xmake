@@ -222,8 +222,17 @@ end
 
 -- add flags from the target packages
 function builder:_add_flags_from_targetpkgs(flags, target)
+    local kind = self:kind()
     for _, flagkind in ipairs(self:_flagkinds()) do
-        local result = target:get_from(flagkind, "package::*")
+        -- attempt to add special lanugage flags from package first, e.g. gcldflags, dcarflags
+        -- @see https://github.com/xmake-io/xmake-repo/issues/5255
+        local result
+        if kind:endswith("ld") or kind:endswith("sh") then
+            result = target:get_from(kind .. "flags", "package::*")
+        end
+        if not result then
+            result = target:get_from(flagkind, "package::*")
+        end
         if result then
             for _, values in ipairs(table.wrap(result)) do
                 table.join2(flags, self:_mapflags(values, flagkind, target))
@@ -309,6 +318,9 @@ function builder:_add_flags_from_argument(flags, target, args)
             return values, extras
         end,
         toolchain = function (name)
+            if target and target.toolconfig then
+                return target:toolconfig(name)
+            end
             local plat, arch
             if target and target.plat then
                 plat = target:plat()
@@ -656,11 +668,14 @@ function builder:_sort_links_of_items(items, opt)
             gh:add_edge(k, v)
         end
         if not gh:empty() then
-            local cycle = gh:find_cycle()
-            if cycle then
-                utils.warning("cycle links found in add_linkorders(): %s", table.concat(cycle, " -> "))
+            local has_cycle
+            links, has_cycle = gh:topo_sort()
+            if has_cycle then
+                local cycle = gh:find_cycle()
+                if cycle then
+                    utils.warning("cycle links found in add_linkorders(): %s", table.concat(cycle, " -> "))
+                end
             end
-            links = gh:topological_sort()
         end
     end
 

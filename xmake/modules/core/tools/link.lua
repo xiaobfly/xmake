@@ -22,6 +22,14 @@
 import("core.project.config")
 import("private.tools.vstool")
 
+-- get implib file
+function _get_implibfile(self, opt)
+    local target = opt and opt.target
+    if target and target:type() == "target" then
+        return target:artifactfile("implib")
+    end
+end
+
 -- init it
 function init(self)
 
@@ -102,7 +110,7 @@ end
 
 -- make the link flag
 function nf_link(self, lib)
-    if not lib:endswith(".lib") then
+    if not lib:endswith(".lib") and not lib:endswith(".obj") then
         lib = lib .. ".lib"
     end
     return lib
@@ -140,15 +148,24 @@ function linkargv(self, objectfiles, targetkind, targetfile, flags, opt)
         table.insert(argv, 1, "-lib")
     elseif targetkind == "shared" then
         table.insert(argv, 1, "-dll")
+        local implibfile = _get_implibfile(self, opt)
+        if implibfile then
+            table.insert(argv, "/implib:" .. implibfile)
+        end
     end
     return self:program(), argv
 end
 
 -- link the target file
 function link(self, objectfiles, targetkind, targetfile, flags, opt)
+    opt = opt or {}
 
-    -- ensure the target directory
+    -- ensure the target file directory exists
     os.mkdir(path.directory(targetfile))
+    local implibfile = _get_implibfile(self, opt)
+    if implibfile then
+        os.mkdir(path.directory(implibfile))
+    end
 
     try
     {
@@ -156,6 +173,7 @@ function link(self, objectfiles, targetkind, targetfile, flags, opt)
 
             local toolchain = self:toolchain()
             local program, argv = linkargv(self, objectfiles, targetkind, targetfile, flags, opt)
+
             if toolchain and toolchain:name() == "masm32" then
                 os.iorunv(program, argv, {envs = self:runenvs()})
             else
@@ -180,4 +198,3 @@ function link(self, objectfiles, targetkind, targetfile, flags, opt)
         }
     }
 end
-

@@ -139,7 +139,7 @@ function _get_frameworks_from_target(target)
     return table.unique(values)
 end
 
-function _add_qmakeprllibs(target, prlfile, qtlibdir)
+function _add_qmakeprllibs(target, prlfile, qt)
     if os.isfile(prlfile) then
         local contents = io.readfile(prlfile)
         local envs = {}
@@ -157,11 +157,22 @@ function _add_qmakeprllibs(target, prlfile, qtlibdir)
                     local libdir = lib:sub(3)
                     target:add("linkdirs", libdir)
                 else
-                    local libstr = string.gsub(lib, "%$%$%[QT_INSTALL_LIBS%]", qtlibdir)
-                    if libstr:startswith("-l") then
-                        libstr = libstr:sub(3)
+                    if qt.qmldir then
+                        lib = string.gsub(lib, "%$%$%[QT_INSTALL_QML%]", qt.qmldir)
                     end
-                    target:add("syslinks", libstr)
+                    if qt.sdkdir then
+                        lib = string.gsub(lib, "%$%$%[QT_INSTALL_PREFIX%]", qt.sdkdir)
+                    end
+                    if qt.pluginsdir then
+                        lib = string.gsub(lib, "%$%$%[QT_INSTALL_PLUGINS%]", qt.pluginsdir)
+                    end
+                    if qt.libdir then
+                        lib = string.gsub(lib, "%$%$%[QT_INSTALL_LIBS%]", qt.libdir)
+                    end
+                    if lib:startswith("-l") then
+                        lib = lib:sub(3)
+                    end
+                    target:add("syslinks", lib)
                 end
             end
         end
@@ -266,7 +277,7 @@ function main(target, opt)
     end
     local plugins = target:values("qt.plugins")
     if plugins then
-        local importfile = path.join(config.buildir(), ".qt", "plugin", target:name(), "static_import.cpp")
+        local importfile = path.join(config.builddir(), ".qt", "plugin", target:name(), "static_import.cpp")
         local file = io.open(importfile, "w")
         if file then
             file:print("#include <QtPlugin>")
@@ -295,7 +306,7 @@ function main(target, opt)
     for _, qt_link in ipairs(target:values("qt.links")) do
         for _, qt_libdir in ipairs(qtprldirs) do
             local prl_file = path.join(qt_libdir, qt_link .. ".prl")
-            _add_qmakeprllibs(target, prl_file, qt.libdir)
+            _add_qmakeprllibs(target, prl_file, qt)
         end
     end
 
@@ -354,7 +365,7 @@ function main(target, opt)
                     else
                         local link = _link(target, qt.libdir, framework, qt_sdkver, infix)
                         target:add("syslinks", link)
-                        _add_qmakeprllibs(target, path.join(qt.libdir, link .. ".prl"), qt.libdir)
+                        _add_qmakeprllibs(target, path.join(qt.libdir, link .. ".prl"), qt)
                         _add_includedirs(target, path.join(qt.includedir, framework))
                         -- e.g. QtGui/5.15.0/QtGui/qpa/qplatformopenglcontext.h
                         _add_includedirs(target, path.join(qt.includedir, framework, qt.sdkver))
@@ -363,7 +374,7 @@ function main(target, opt)
                 else
                     local link = _link(target, qt.libdir, framework, qt_sdkver, infix)
                     target:add("syslinks", link)
-                    _add_qmakeprllibs(target, path.join(qt.libdir, link .. ".prl"), qt.libdir)
+                    _add_qmakeprllibs(target, path.join(qt.libdir, link .. ".prl"), qt)
                     _add_includedirs(target, path.join(qt.includedir, framework))
                     _add_includedirs(target, path.join(qt.includedir, framework, qt.sdkver))
                     _add_includedirs(target, path.join(qt.includedir, framework, qt.sdkver, framework))
@@ -438,7 +449,12 @@ function main(target, opt)
         target:add("linkdirs", qt.libdir)
         target:add("syslinks", "ws2_32", "gdi32", "ole32", "advapi32", "shell32", "user32", "opengl32", "imm32", "winmm", "iphlpapi")
         -- for debugger, https://github.com/xmake-io/xmake-vscode/issues/225
-        target:add("runenvs", "PATH", qt.bindir)
+        if qt.bindir_host then
+            target:add("runenvs", "PATH", qt.bindir_host)
+        end
+        if qt.bindir then
+            target:add("runenvs", "PATH", qt.bindir)
+        end
     elseif target:is_plat("mingw") then
         target:set("frameworks", nil)
         -- we need to fix it, because gcc maybe does not work on latest mingw when `-isystem D:\a\_temp\msys64\mingw64\include` is passed.
@@ -502,25 +518,15 @@ function main(target, opt)
 
     -- is gui application?
     if opt.gui then
-        -- add -subsystem:windows for windows platform
-        if target:is_plat("windows") then
-            target:add("defines", "_WINDOWS")
-            local subsystem = false
-            for _, ldflag in ipairs(target:get("ldflags")) do
-                if type(ldflag) == "string" then
-                    ldflag = ldflag:lower()
-                    if ldflag:find("[/%-]subsystem:") then
-                        subsystem = true
-                        break
-                    end
-                end
+        if not target:values("windows.subsystem") then
+            target:values_set("windows.subsystem", "windows")
+            if target:has_tool("ld", "link", "lld-link") then
+                target:add("ldflags", "-entry:mainCRTStartup", {force = true})
             end
-            -- maybe user will set subsystem to console
-            if not subsystem then
-                target:add("ldflags", "-subsystem:windows", "-entry:mainCRTStartup", {force = true})
-            end
-        elseif target:is_plat("mingw") then
-            target:add("ldflags", "-mwindows", {force = true})
+        end
+    else
+        if not target:values("windows.subsystem") then
+            target:values_set("windows.subsystem", "console")
         end
     end
 

@@ -40,14 +40,12 @@ local import        = require("sandbox/modules/import")
 function _instance.new(kind, name, program, plat, arch, toolchain_inst)
 
     -- import "core.tools.xxx"
-    local toolclass = nil
-    if os.isfile(path.join(os.programdir(), "modules", "core", "tools", name .. ".lua")) then
-        toolclass = import("core.tools." .. name, {nocache = true}) -- @note we need to create a tool instance with unique toolclass context (_g)
-    end
+    -- @note we need to create a tool instance with unique toolclass context (_g)
+    local toolclass = import("core.tools." .. name, {try = true, nocache = true})
 
     -- not found?
     if not toolclass then
-        return nil, string.format("cannot import \"core.tool.%s\" module!", name)
+        return nil, string.format("cannot import \"core.tools.%s\" module!", name)
     end
 
     -- new an instance
@@ -237,8 +235,6 @@ end
 -- @param opt.toolchain_info  the toolchain info (optional)
 --
 function tool.load(kind, opt)
-
-    -- get tool information
     opt = opt or {}
     local program = opt.program
     local toolname = opt.toolname
@@ -249,7 +245,7 @@ function tool.load(kind, opt)
     local arch = toolchain_info.arch or config.get("arch") or os.arch()
 
     -- init cachekey
-    local cachekey = kind .. (program or "") .. plat .. arch
+    local cachekey = kind .. (program or "") .. plat .. arch .. (opt.host and "host" or "")
 
     -- get it directly from cache dirst
     tool._TOOLS = tool._TOOLS or {}
@@ -273,7 +269,7 @@ function tool.load(kind, opt)
 
     -- get the tool program and name
     if not program then
-        program, toolname, toolchain_info = platform.tool(kind, plat, arch)
+        program, toolname, toolchain_info = platform.tool(kind, plat, arch, {host = opt.host})
         if toolchain_info then
             assert(toolchain_info.plat == plat)
             assert(toolchain_info.arch == arch)

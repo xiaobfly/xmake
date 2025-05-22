@@ -44,7 +44,7 @@ function main(opt)
             -- @see https://github.com/xmake-io/xmake/issues/3057
             local objectfile = os.tmpfile() .. ".obj"
             local sourcefile = os.tmpfile() .. ".c"
-            io.writefile(sourcefile, "int main(int argc, char** argv)\n{return 0;}")
+            io.writefile(sourcefile, "int main(int argc, char** argv)\n{return 0;}\n")
             os.runv(program, {"-c", "-Fo" .. objectfile, sourcefile}, {envs = opt.envs})
             os.rm(objectfile)
             os.rm(sourcefile)
@@ -62,7 +62,9 @@ function main(opt)
             return info
         end
         opt.parse = opt.parse or function (output)
-            return output:match("(%d+%.%d+%.%d*.-)%s")
+            -- we only keep the first three digits of the version number, making sure to provide a valid semver string.
+            -- @see https://github.com/xmake-io/xmake/issues/6474
+            return output:match("%s(%d+%.%d+%.%d+)")
         end
         version = find_programver(program, opt)
     end

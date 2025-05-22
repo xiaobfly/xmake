@@ -22,6 +22,7 @@
 import("core.base.option")
 import("core.project.config")
 import("detect.sdks.find_vstudio")
+import("core.project.project")
 
 -- add the given vs environment
 function _add_vsenv(toolchain, name, curenvs)
@@ -51,17 +52,24 @@ end
 function main(toolchain)
 
     -- set toolset
-    toolchain:set("toolset", "cc",  "clang-cl.exe")
-    toolchain:set("toolset", "cxx", "clang-cl.exe")
-    toolchain:set("toolset", "mrc", "rc.exe")
+    toolchain:set("toolset", "cc",      "clang-cl")
+    toolchain:set("toolset", "cxx",     "clang-cl")
+    toolchain:set("toolset", "mrc",     "rc.exe")
+    toolchain:set("toolset", "dlltool", "llvm-dlltool")
     if toolchain:is_arch("x64") then
         toolchain:set("toolset", "as",  "ml64.exe")
     else
         toolchain:set("toolset", "as",  "ml.exe")
     end
-    toolchain:set("toolset", "ld",  "link.exe")
-    toolchain:set("toolset", "sh",  "link.exe")
-    toolchain:set("toolset", "ar",  "link.exe")
+    if project.policy("build.optimization.lto") then
+        toolchain:set("toolset", "ld",  "lld-link")
+        toolchain:set("toolset", "sh",  "lld-link")
+        toolchain:set("toolset", "ar",  "llvm-ar")
+    else
+        toolchain:set("toolset", "ld",  "link.exe")
+        toolchain:set("toolset", "sh",  "link.exe")
+        toolchain:set("toolset", "ar",  "link.exe")
+    end
 
     -- add vs environments
     local expect_vars = {"PATH", "LIB", "INCLUDE", "LIBPATH"}
@@ -75,16 +83,23 @@ function main(toolchain)
         end
     end
 
-    local march
+    local target
     if toolchain:is_arch("x86_64", "x64") then
-        march = "-m64"
-    elseif toolchain:is_arch("i386", "x86") then
-        march = "-m32"
+        target = "x86_64-pc"
+    elseif toolchain:is_arch("i386", "x86", "i686") then
+        target = "i686-pc"
+    elseif toolchain:is_arch("arm64", "aarch64") then
+        target = "aarch64"
+    elseif toolchain:is_arch("arm64ec") then
+        target = "arm64ec"
+    elseif toolchain:is_arch("arm") then
+        target = "armv7"
     end
-    if march then
-        toolchain:add("cxflags", march)
-        toolchain:add("mxflags", march)
-        toolchain:add("asflags", march)
+
+    target = target .. "-windows-msvc"
+    if target then
+        toolchain:add("cxflags", "--target=" .. target)
+        toolchain:add("mxflags", "--target=" .. target)
     end
 end
 

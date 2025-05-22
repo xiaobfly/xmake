@@ -30,7 +30,7 @@ function _add_lto_optimization(target, sourcekind)
     local cflag = sourcekind == "cxx" and "cxxflags" or "cflags"
     if cc == "cl" then
         target:add(cflag, "-GL")
-    elseif cc == "clang" or cc == "clangxx" then
+    elseif cc == "clang" or cc == "clangxx" or cc == "clang_cl" then
         target:add(cflag, "-flto=thin")
     elseif cc == "gcc" or cc == "gxx" then
         target:add(cflag, "-flto")
@@ -55,6 +55,19 @@ function _add_lto_optimization(target, sourcekind)
             local optimize_flags = compiler.map_flags(sourcekind == "cc" and "c" or "cxx", "optimize", optimize)
             target:add("ldflags", optimize_flags)
             target:add("shflags", optimize_flags)
+        end
+    end
+
+    local program, ar = target:tool("ar")
+    if cc == "clang_cl" then
+        if ld == "link" then
+            wprint([[Unsupported toolset(%s) for lto, please use `set_toolset("ld", "lld-link")`]], ld)
+            target:set("toolset", "ld", "lld-link")
+            target:set("toolset", "sh", "lld-link")
+        end
+        if ar ~= "llvm-ar" and ar ~= "llvm_ar" then
+            wprint([[Unsupported toolset(%s) for lto, please use `set_toolset("ar", "llvm-ar")`]], ar)
+            target:set("toolset", "ar", "llvm-ar")
         end
     end
 end

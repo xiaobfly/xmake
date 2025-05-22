@@ -31,6 +31,7 @@ function _get_triple(arch)
     ,   ["armeabi"]     = "arm-linux-androideabi"   -- removed in ndk r17
     ,   ["armeabi-v7a"] = "arm-linux-androideabi"
     ,   ["arm64-v8a"]   = "aarch64-linux-android"
+    ,   ["riscv64"]     = "riscv64-linux-android"
     ,   i386            = "i686-linux-android"      -- deprecated
     ,   x86             = "i686-linux-android"
     ,   x86_64          = "x86_64-linux-android"
@@ -49,6 +50,7 @@ function _get_target(arch, ndk_sdkver)
     ,   ["armv7-a"]     = "armv7-none-linux-androideabi"    -- deprecated
     ,   ["armeabi-v7a"] = "armv7-none-linux-androideabi"
     ,   ["arm64-v8a"]   = "aarch64-none-linux-android"
+    ,   ["riscv64"]     = "riscv64-none-linux-android"
     ,   ["i386"]        = "i686-none-linux-android"         -- deprecated
     ,   ["x86"]         = "i686-none-linux-android"
     ,   ["x86_64"]      = "x86_64-none-linux-android"
@@ -93,6 +95,13 @@ function main(toolchain)
     toolchain:set("toolset", "ranlib", gcc_toolchain_bin and path.join(gcc_toolchain_bin, cross .. "ranlib") or (cross .. "ranlib"))
     toolchain:set("toolset", "strip", gcc_toolchain_bin and path.join(gcc_toolchain_bin, cross .. "strip") or (cross .. "strip"), "llvm-strip")
 
+    -- gnustl and stlport have been removed in ndk r18 (deprecated in ndk r17)
+    -- https://github.com/android/ndk/wiki/Changelog-r18
+    local old_runtimes = {"gnustl_static", "gnustl_shared", "stlport_static", "stlport_shared"}
+    if ndkver and ndkver < 18 then
+        toolchain:add("runtimes", table.unpack(old_runtimes))
+    end
+
     -- init flags
     local arm32 = false
     local arch = toolchain:arch()
@@ -114,18 +123,18 @@ function main(toolchain)
 
         -- add ndk target
         local ndk_target = _get_target(arch, ndk_sdkver)
-        toolchain:add("cxflags", "-target " .. ndk_target)
-        toolchain:add("asflags", "-target " .. ndk_target)
-        toolchain:add("ldflags", "-target " .. ndk_target)
-        toolchain:add("shflags", "-target " .. ndk_target)
+        toolchain:add("cxflags", "--target=" .. ndk_target)
+        toolchain:add("asflags", "--target=" .. ndk_target)
+        toolchain:add("ldflags", "--target=" .. ndk_target)
+        toolchain:add("shflags", "--target=" .. ndk_target)
 
         -- add gcc toolchain
         local gcc_toolchain = toolchain:config("gcc_toolchain")
         if gcc_toolchain then
-            toolchain:add("cxflags", "-gcc-toolchain " .. gcc_toolchain)
-            toolchain:add("asflags", "-gcc-toolchain " .. gcc_toolchain)
-            toolchain:add("ldflags", "-gcc-toolchain " .. gcc_toolchain)
-            toolchain:add("shflags", "-gcc-toolchain " .. gcc_toolchain)
+            toolchain:add("cxflags", "--gcc-toolchain=" .. gcc_toolchain)
+            toolchain:add("asflags", "--gcc-toolchain=" .. gcc_toolchain)
+            toolchain:add("ldflags", "--gcc-toolchain=" .. gcc_toolchain)
+            toolchain:add("shflags", "--gcc-toolchain=" .. gcc_toolchain)
         end
     else
         local march = arch
@@ -155,6 +164,7 @@ function main(toolchain)
         ,   ["armeabi"]     = "arch-arm"    -- removed in ndk r17
         ,   ["armeabi-v7a"] = "arch-arm"
         ,   ["arm64-v8a"]   = "arch-arm64"
+        ,   ["riscv64"]     = "arch-riscv64"
         ,   i386            = "arch-x86"    -- deprecated
         ,   x86             = "arch-x86"
         ,   x86_64          = "arch-x86_64"
@@ -213,6 +223,10 @@ function main(toolchain)
         local cxxstl_sdkdir = nil
         local ndk_cxxstl = config.get("runtimes") or config.get("ndk_cxxstl")
         if ndk_cxxstl then
+            if (ndkver and ndkver >= 18) and table.contains(old_runtimes, ndk_cxxstl)  then
+                utils.warning("%s is was removed in ndk v%s", ndk_cxxstl, ndk_sdkver)
+            end
+
             if ndk_cxxstl:find(",", 1, true) then
                 local runtimes_supported = hashset.from(toolchain:get("runtimes"))
                 for _, item in ipairs(ndk_cxxstl:split(",")) do
@@ -253,6 +267,7 @@ function main(toolchain)
                 ,   ["armeabi"]     = "armeabi"         -- removed in ndk r17
                 ,   ["armeabi-v7a"] = "armeabi-v7a"
                 ,   ["arm64-v8a"]   = "arm64-v8a"
+                ,   ["riscv64"]     = "riscv64"
                 ,   i386            = "x86"             -- deprecated
                 ,   x86             = "x86"
                 ,   x86_64          = "x86_64"

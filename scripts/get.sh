@@ -109,12 +109,16 @@ get_host_speed() {
 }
 
 get_fast_host() {
-    speed_gitee=$(get_host_speed "gitee.com")
-    speed_github=$(get_host_speed "github.com")
-    if [ $speed_gitee -le $speed_github ]; then
-        echo "gitee.com"
-    else
+    if test_eq "$GITHUB_ACTIONS" "true" || test_eq "$GITHUB_ACTIONS" "1"; then
         echo "github.com"
+    else
+        speed_gitee=$(get_host_speed "gitee.com")
+        speed_github=$(get_host_speed "github.com")
+        if [ $speed_gitee -le $speed_github ]; then
+            echo "gitee.com"
+        else
+            echo "github.com"
+        fi
     fi
 }
 
@@ -203,7 +207,7 @@ elif test_eq "$branch" "__run__"; then
 else
     echo "cloning $gitrepo $branch .."
     if test_nz "$2"; then
-        git clone --depth=50 -b "$branch" "$gitrepo" --recurse-submodules $projectdir || raise "clone failed, check your network or branch name"
+        git clone --filter=tree:0 --no-checkout -b "$branch" "$gitrepo" --recurse-submodules $projectdir || raise "clone failed, check your network or branch name"
         cd $projectdir || raise 'chdir failed!'
         git checkout -qf "$2"
         cd - || raise 'chdir failed!'
@@ -219,7 +223,7 @@ if test_nq "$2" "__install_only__"; then
         ./configure || raise "configure failed!"
         cd - || raise 'chdir failed!'
     fi
-    $make -C $projectdir --no-print-directory || raise "make failed!"
+    $make -C $projectdir --no-print-directory -j4 || raise "make failed!"
 fi
 
 # do install

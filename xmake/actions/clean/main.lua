@@ -29,6 +29,7 @@ import("core.platform.platform")
 import("private.action.clean.remove_files")
 import("target.action.clean", {alias = "_do_clean_target"})
 import("private.service.remote_build.action", {alias = "remote_build_action"})
+import("private.detect.check_targetname")
 
 -- on clean target
 function _on_clean_target(target)
@@ -105,7 +106,7 @@ end
 -- clean target
 function _clean(targetname)
     if targetname then
-        local target = project.target(targetname)
+        local target = assert(check_targetname(targetname))
         _clean_target(target)
     else
         _clean_targets(project.ordertargets())
@@ -156,17 +157,14 @@ function main()
         return remote_build_action()
     end
 
+    -- load config first
+    task.run("config", {require = false}, {disable_dump = true})
+
     -- lock the whole project
     project.lock()
 
     -- get the target name
     local targetname = option.get("target")
-
-    -- local config first
-    config.load()
-
-    -- load targets
-    project.load_targets()
 
     -- enter project directory
     local oldir = os.cd(project.directory())

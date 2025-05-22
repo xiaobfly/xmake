@@ -156,49 +156,49 @@ end
 -- run command: os.cp
 function _runcmd_cp(cmd, opt)
     if not opt.dryrun then
-        os.cp(cmd.srcpath, cmd.dstpath, opt.opt)
+        os.cp(cmd.srcpath, cmd.dstpath, cmd.opt)
     end
 end
 
 -- run command: os.mv
 function _runcmd_mv(cmd, opt)
     if not opt.dryrun then
-        os.mv(cmd.srcpath, cmd.dstpath, opt.opt)
+        os.mv(cmd.srcpath, cmd.dstpath, cmd.opt)
     end
 end
 
 -- run command: os.ln
 function _runcmd_ln(cmd, opt)
     if not opt.dryrun then
-        os.ln(cmd.srcpath, cmd.dstpath, opt.opt)
+        os.ln(cmd.srcpath, cmd.dstpath, cmd.opt)
     end
 end
 
 -- run command: clean rpath
 function _runcmd_clean_rpath(cmd, opt)
     if not opt.dryrun then
-        rpath_utils.clean(cmd.filepath, opt.opt)
+        rpath_utils.clean(cmd.filepath, cmd.opt)
     end
 end
 
 -- run command: insert rpath
 function _runcmd_insert_rpath(cmd, opt)
     if not opt.dryrun then
-        rpath_utils.insert(cmd.filepath, cmd.rpath, opt.opt)
+        rpath_utils.insert(cmd.filepath, cmd.rpath, cmd.opt)
     end
 end
 
 -- run command: remove rpath
 function _runcmd_remove_rpath(cmd, opt)
     if not opt.dryrun then
-        rpath_utils.remove(cmd.filepath, cmd.rpath, opt.opt)
+        rpath_utils.remove(cmd.filepath, cmd.rpath, cmd.opt)
     end
 end
 
 -- run command: change rpath
 function _runcmd_change_rpath(cmd, opt)
     if not opt.dryrun then
-        rpath_utils.change(cmd.filepath, cmd.rpath_old, cmd.rpath_new, opt.opt)
+        rpath_utils.change(cmd.filepath, cmd.rpath_old, cmd.rpath_new, cmd.opt)
     end
 end
 
@@ -291,7 +291,7 @@ function batchcmds:compile(sourcefiles, objectfile, opt)
 
     -- load compiler and get compilation command
     local sourcekind = opt.sourcekind
-    if not sourcekind and type(sourcefiles) == "string" or path.instance_of(sourcefiles) then
+    if not sourcekind and (type(sourcefiles) == "string" or path.instance_of(sourcefiles)) then
         sourcekind = language.sourcekind_of(tostring(sourcefiles))
     end
     local compiler_inst = compiler.load(sourcekind, opt)
@@ -308,6 +308,7 @@ function batchcmds:compilev(argv, opt)
     -- bind target if exists
     opt = opt or {}
     opt.target = self._TARGET
+    opt.verbose = (opt.verbose == nil) and true or opt.verbose
 
     -- load compiler and get compilation command
     local compiler_inst = opt.compiler
@@ -337,7 +338,11 @@ function batchcmds:compilev(argv, opt)
     end
 
     -- add compilation command and bind run environments of compiler
-    self:vrunv(compiler_inst:program(), argv, {envs = table.join(compiler_inst:runenvs(), opt.envs)})
+    if opt.verbose then
+        self:vrunv(compiler_inst:program(), argv, {envs = table.join(compiler_inst:runenvs(), opt.envs)})
+    else
+        self:runv(compiler_inst:program(), argv, {envs = table.join(compiler_inst:runenvs(), opt.envs)})
+    end
 end
 
 -- add command: linker.link

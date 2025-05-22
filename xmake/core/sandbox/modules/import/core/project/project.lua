@@ -71,6 +71,7 @@ sandbox_core_project.tmpdir               = project.tmpdir
 sandbox_core_project.tmpfile              = project.tmpfile
 sandbox_core_project.is_loaded            = project.is_loaded
 sandbox_core_project.apis                 = project.apis
+sandbox_core_project.namespaces           = project.namespaces
 
 -- check project options
 function sandbox_core_project.check_options()
@@ -98,15 +99,15 @@ function sandbox_core_project.check_options()
         if opt then
             -- check deps of this option first
             for _, dep in ipairs(opt:orderdeps()) do
-                if not checked[dep:name()] then
+                if not checked[dep:fullname()] then
                     dep:check()
-                    checked[dep:name()] = true
+                    checked[dep:fullname()] = true
                 end
             end
             -- check this option
-            if not checked[opt:name()] then
+            if not checked[opt:fullname()] then
                 opt:check()
-                checked[opt:name()] = true
+                checked[opt:fullname()] = true
             end
         end
     end
@@ -127,6 +128,17 @@ end
 
 -- config target
 function sandbox_core_project._config_target(target, opt)
+    local before_config = target:script("config_before")
+    if before_config then
+        before_config(target, opt)
+    end
+    for _, rule in ipairs(table.wrap(target:orderules())) do
+        local before_config = rule:script("config_before")
+        if before_config then
+            before_config(target, opt)
+        end
+    end
+
     for _, rule in ipairs(table.wrap(target:orderules())) do
         local on_config = rule:script("config")
         if on_config then
@@ -137,9 +149,20 @@ function sandbox_core_project._config_target(target, opt)
     if on_config then
         on_config(target, opt)
     end
+
+    for _, rule in ipairs(table.wrap(target:orderules())) do
+        local after_config = rule:script("config_after")
+        if after_config then
+            after_config(target, opt)
+        end
+    end
+    local config_after = target:script("config_after")
+    if config_after then
+        config_after(target, opt)
+    end
 end
 
--- config targets
+-- config targets, TODO: We should support parallel configuration
 --
 -- @param opt   the extra option, e.g. {recheck = false}
 --

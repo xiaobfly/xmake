@@ -52,7 +52,7 @@ end
 function _load_package(package)
 
     -- ensure build and output directories
-    os.tryrm(package:buildir())
+    os.tryrm(package:builddir())
     os.mkdir(package:outputdir())
 
     -- load it
@@ -112,11 +112,11 @@ function main()
         return remote_build_action()
     end
 
-    -- lock the whole project
-    project.lock()
-
     -- load config first
     task.run("config", {}, {disable_dump = true})
+
+    -- lock the whole project
+    project.lock()
 
     -- enter project directory
     local oldir = os.cd(project.directory())

@@ -52,6 +52,20 @@ function can_shallow_submodules()
     return can or false
 end
 
+-- can clone with --filter=tree:0?
+-- @see https://github.com/xmake-io/xmake/issues/6246
+function can_treeless()
+    local can = _g.can_treeless
+    if can == nil then
+        local git = assert(find_tool("git", {version = true}), "git not found!")
+        if git.version and semver.compare(git.version, "2.16.0") >= 0 then
+            can = true
+        end
+        _g.can_treeless = can or false
+    end
+    return can or false
+end
+
 -- clone url
 --
 -- @param url   the git url
@@ -62,7 +76,7 @@ end
 -- import("devel.git")
 --
 -- git.clone("git@github.com:xmake-io/xmake.git")
--- git.clone("git@github.com:xmake-io/xmake.git", {depth = 1, branch = "master", outputdir = "/tmp/xmake", longpaths = true})
+-- git.clone("git@github.com:xmake-io/xmake.git", {depth = 1, treeless = true, branch = "master", outputdir = "/tmp/xmake", longpaths = true})
 --
 -- @endcode
 --
@@ -85,6 +99,17 @@ function main(url, opt)
     if opt.depth then
         table.insert(argv, "--depth")
         table.insert(argv, type(opt.depth) == "number" and tostring(opt.depth) or opt.depth)
+    end
+
+    -- treeless?
+    -- @see https://github.com/xmake-io/xmake/issues/5507
+    if opt.treeless and can_treeless() then
+        table.insert(argv, "--filter=tree:0")
+    end
+
+    -- no checkout
+    if opt.checkout == false then
+        table.insert(argv, "--no-checkout")
     end
 
     -- recursive?
@@ -137,5 +162,9 @@ function main(url, opt)
     end
 
     -- clone it
-    os.vrunv(git.program, argv, {envs = envs})
+    if opt.verbose then
+        os.execv(git.program, argv, {envs = envs})
+    else
+        os.vrunv(git.program, argv, {envs = envs})
+    end
 end

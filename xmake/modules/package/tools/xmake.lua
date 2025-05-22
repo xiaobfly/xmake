@@ -89,6 +89,13 @@ function _get_configs_for_windows(package, configs, opt)
     if package:config("toolchains") and _is_toolchain_compatible_with_host(package) then
         _get_configs_for_host_toolchain(package, configs, opt)
     end
+
+    if not is_host("windows") then
+        local sdkdir = _get_config_from_toolchains(package, "sdkdir") or get_config("sdk")
+        if sdkdir and #sdkdir > 0 then
+            table.insert(configs, "--sdk=" .. sdkdir)
+        end
+    end
 end
 
 -- get configs for appleos
@@ -308,9 +315,12 @@ function _get_configs(package, configs, opt)
     if shflags and #shflags > 0 then
         table.insert(configs, "--shflags=" .. table.concat(shflags, ' '))
     end
-    local buildir = opt.buildir or package:buildir()
-    if buildir then
-        table.insert(configs, "--buildir=" .. buildir)
+    local builddir = opt.builddir or opt.buildir or package:builddir()
+    if builddir then
+        table.insert(configs, "--builddir=" .. builddir)
+    end
+    if opt.buildir then
+        wprint("{buildir = } has been deprecated, please use {builddir = } in xmake.install")
     end
     return configs
 end
@@ -517,16 +527,18 @@ function install(package, configs, opt)
     if njob then
         table.insert(argv, "--jobs=" .. njob)
     end
-    if opt.target then
-        table.insert(argv, opt.target)
+    local target = table.wrap(opt.target)
+    if #target ~= 0 then
+        table.join2(argv, target)
     end
     os.vrunv(os.programfile(), argv, {envs = envs})
 
     -- do install
     argv = {"install", "-y", "--nopkgs", "-o", package:installdir()}
     _set_builtin_argv(package, argv)
-    if opt.target then
-        table.insert(argv, opt.target)
+    local targets = table.wrap(opt.target)
+    if #targets ~= 0 then
+        table.join2(argv, targets)
     end
     os.vrunv(os.programfile(), argv, {envs = envs})
 end

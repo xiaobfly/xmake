@@ -28,6 +28,21 @@ import("core.language.language")
 import("core.project.policy")
 import("utils.progress")
 
+-- get implib file
+function _get_implibfile(self, targetkind, targetfile, opt)
+    if targetkind == "shared" and self:is_plat("mingw") then
+        local target = opt and opt.target
+        local implibfile
+        if target and target:type() == "target" then
+            implibfile = target:artifactfile("implib")
+        end
+        if not implibfile then
+            implibfile = path.join(path.directory(targetfile), path.basename(targetfile) .. ".a")
+        end
+        return implibfile
+    end
+end
+
 -- init it
 function init(self)
 
@@ -52,7 +67,9 @@ function nf_symbol(self, level, opt)
     -- debug? generate *.pdb file
     local flags = nil
     if level == "debug" then
-        flags = {"-G", "-g", "-lineinfo"}
+        -- #5777: '--device-debug (-G)' overrides '--generate-line-info (-lineinfo)' in nvcc
+        -- remove '-G' and '-lineinfo' and add them in mode.debug and mode.profile respectively
+        flags = {"-g"}
         if self:is_plat("windows") then
             local host_flags = nil
             local symbolfile = nil
@@ -272,7 +289,8 @@ function nf_pcxxheader(self, pcheaderfile)
 end
 
 -- make the link arguments list
-function linkargv(self, objectfiles, targetkind, targetfile, flags)
+function linkargv(self, objectfiles, targetkind, targetfile, flags, opt)
+    opt = opt or {}
 
     -- add rpath for dylib (macho), e.g. -install_name @rpath/file.dylib
     local flags_extra = {}
@@ -284,9 +302,10 @@ function linkargv(self, objectfiles, targetkind, targetfile, flags)
     end
 
     -- add `-Wl,--out-implib,outputdir/libxxx.a` for xxx.dll on mingw/gcc
-    if targetkind == "shared" and self:is_plat("mingw") then
+    local implibfile = _get_implibfile(self, targetkind, targetfile, opt)
+    if implibfile then
         table.insert(flags_extra, "-Xlinker")
-        table.insert(flags_extra, "-Wl,--out-implib," .. path.join(path.directory(targetfile), path.basename(targetfile) .. ".dll.a"))
+        table.insert(flags_extra, "-Wl,--out-implib," .. implibfile)
     end
 
     -- make link args
@@ -294,9 +313,16 @@ function linkargv(self, objectfiles, targetkind, targetfile, flags)
 end
 
 -- link the target file
-function link(self, objectfiles, targetkind, targetfile, flags)
+function link(self, objectfiles, targetkind, targetfile, flags, opt)
+    opt = opt or {}
+
     os.mkdir(path.directory(targetfile))
-    local program, argv = linkargv(self, objectfiles, targetkind, targetfile, flags)
+    local implibfile = _get_implibfile(self, targetkind, targetfile, opt)
+    if implibfile then
+        os.mkdir(path.directory(implibfile))
+    end
+
+    local program, argv = linkargv(self, objectfiles, targetkind, targetfile, flags, opt)
     os.runv(program, argv, {envs = self:runenvs()})
 end
 
@@ -434,7 +460,8 @@ function compile(self, sourcefile, objectfile, dependinfo, flags, opt)
                 if depfile and os.isfile(depfile) then
                     if dependinfo then
                         -- nvcc uses gcc-style depfiles
-                        dependinfo.depfiles_gcc = io.readfile(depfile, {continuation = "\\"})
+                        dependinfo.depfiles_format = "gcc"
+                        dependinfo.depfiles = io.readfile(depfile, {continuation = "\\"})
                     end
 
                     -- remove the temporary dependent file

@@ -102,7 +102,7 @@ wget https://xmake.io/shget.text -O - | bash
 ### With PowerShell
 
 ```sh
-Invoke-Expression (Invoke-Webrequest 'https://xmake.io/psget.text' -UseBasicParsing).Content
+irm https://xmake.io/psget.text | iex
 ```
 
 ### Other installation methods
@@ -246,6 +246,10 @@ iverilog      Icarus Verilog
 verilator     Verilator open-source SystemVerilog simulator and lint system
 cosmocc       build-once run-anywhere
 hdk           Harmony SDK
+ti-c2000      TI-CGT C2000 compiler
+ti-c6000      TI-CGT C6000 compiler
+iararm        IAR ARM C/C++ Compiler
+kotlin-native Kotlin Native Programming Language Compiler
 ```
 
 ## Supported languages
@@ -269,6 +273,7 @@ hdk           Harmony SDK
 * YASM
 * MASM32
 * Cppfront
+* Kotlin
 
 ## Features
 
@@ -690,4 +695,7 @@ This project exists thanks to all the people who have [contributed](CONTRIBUTING
 * [uael](https://github.com/uael): Provide the semantic versioning library [sv](https://github.com/uael/sv)
 * [OpportunityLiu](https://github.com/OpportunityLiu): Improve cuda, tests and ci
 * [xq144](https://github.com/xq114): Improve `xrepo env shell`, and contribute a lot of packages to the [xmake-repo](https://github.com/xmake-io/xmake-repo) repository.
+* [star-hengxing](https://github.com/star-hengxing): Contribute a lot of packages to the [xmake-repo](https://github.com/xmake-io/xmake-repo) repository.
+* [Arthapz](https://github.com/Arthapz): Contribue new C++ Modules implementation.
+* [SirLynix](https://github.com/SirLynix): Contributed many packages and let more people know about xmake.
 * `enderger`: Helped smooth out the edges on the English translation of the README

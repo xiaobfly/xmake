@@ -136,6 +136,12 @@ function main(name, opt)
     local librarydir_host = path.join(opt.installdir, "lib", "host")
     local libfiles = os.files(path.join(librarydir, "*.rlib"))
 
+    local frameworkdirs = {}
+    table.insert(frameworkdirs, librarydir)
+    if os.isdir(librarydir_host) then
+        table.insert(frameworkdirs, librarydir_host)
+    end
+
     -- @see https://github.com/xmake-io/xmake/issues/4228
     local libfiles_native
     local plat = opt.plat
@@ -156,6 +162,7 @@ function main(name, opt)
     else
         libfiles_native_host = os.files(path.join(librarydir_host, "*.so"))
     end
+    local libraries_set = {}
     for _, libraryfile in ipairs(table.join(libfiles or {}, libfiles_native or {}, libfiles_native_host)) do
         local filename = path.filename(libraryfile)
         local libraryname = filename:split('-', {plain = true})[1]
@@ -163,18 +170,17 @@ function main(name, opt)
         if not libraryname:startswith("lib") then
             libraryname = "lib" .. libraryname
         end
-        if names:has(libraryname) then
-            frameworkdirs = frameworkdirs or {}
+        if names:has(libraryname) and not libraries_set[libraryname] then
             frameworks = frameworks or {}
-            table.insert(frameworkdirs, path.directory(libraryfile))
             table.insert(frameworks, libraryfile)
+            libraries_set[libraryname] = true
         end
     end
     local result
     if frameworks and frameworkdirs then
         result = result or {}
         result.libfiles = libfiles
-        result.frameworkdirs = frameworkdirs and table.unique(frameworkdirs) or nil
+        result.frameworkdirs = frameworkdirs
         result.frameworks = frameworks
         result.version = opt.require_version
     end

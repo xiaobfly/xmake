@@ -26,7 +26,7 @@ import("core.project.project")
 import("core.project.policy")
 import("core.language.language")
 import("private.tools.vstool")
-import("private.tools.cl.parse_include")
+import("core.tools.cl.parse_include")
 import("private.cache.build_cache")
 import("private.service.distcc_build.client", {alias = "distcc_build_client"})
 import("utils.progress")
@@ -216,9 +216,22 @@ function nf_vectorext(self, extension)
     ,   fma        = "-arch:AVX2"
     ,   all        = {"-arch:SSE", "-arch:SSE2", "/d2archSSE42", "-arch:AVX", "-arch:AVX2", "-arch:AVX512"}
     }
-    local flag = maps[extension]
-    if flag and self:has_flags(flag, "cxflags") then
-        return flag
+    local flags = maps[extension]
+    if flags then
+        -- @see https://github.com/xmake-io/xmake/issues/5499
+        if type(flags) == "string" then
+            return flags
+        else
+            local result = {}
+            for _, flag in ipairs(flags) do
+                if self:has_flags(flag, "cxflags") then
+                    table.insert(result, flag)
+                end
+            end
+            if #result > 0 then
+                return table.unwrap(result)
+            end
+        end
     end
 end
 
@@ -765,10 +778,13 @@ function compile(self, sourcefile, objectfile, dependinfo, flags, opt)
     -- generate the dependent includes
     if dependinfo then
         if depfile and os.isfile(depfile) then
-            dependinfo.depfiles_cl_json = io.readfile(depfile)
+            dependinfo.depfiles_format = "cl_json"
+            dependinfo.depfiles = io.readfile(depfile)
             os.tryrm(depfile)
         elseif outdata then
-            dependinfo.depfiles_cl = outdata
+            dependinfo.depfiles_format = "cl"
+            dependinfo.depfiles = outdata
         end
     end
 end
+

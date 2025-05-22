@@ -23,26 +23,37 @@ import("core.base.option")
 import("core.project.config")
 import("core.tool.toolchain")
 import("lib.detect.find_path")
+import("lib.detect.find_file")
 import("detect.sdks.find_qt")
 
--- get install directory
-function _get_installdir(target)
-    local installdir = assert(target:installdir(), "please use `xmake install -o installdir` or `set_installdir` to set install directory on windows.")
-    return installdir
+-- get bin directory, if set_prefixdir changed bindir, we should use bindir
+function _get_bindir(target)
+    local bindir = assert(target:bindir(), "please use `xmake install -o installdir` or `set_installdir` to set install directory on windows.")
+    return bindir
 end
 
 -- install application package for windows
 function main(target, opt)
 
-    local targetfile = target:targetfile()
-    local installdir = _get_installdir(target)
-    local installfile = path.join(installdir, "bin", path.filename(targetfile))
+    local bindir = _get_bindir(target)
+    local targetfile = path.join(bindir, path.filename(target:targetfile()))
+    local installfiles = {}
+    table.insert(installfiles, targetfile)
+    for _, t in ipairs(target:orderdeps()) do
+        if t:rules()["qt.shared"] then -- qt.shared deps
+            local installfile = path.join(bindir, path.filename(t:targetfile()))
+            table.insert(installfiles, installfile)
+        end
+    end
 
     -- get qt sdk
     local qt = assert(find_qt(), "Qt SDK not found!")
 
     -- get windeployqt
-    local windeployqt = path.join(qt.bindir, "windeployqt.exe")
+    local search_dirs = {}
+    if qt.bindir_host then table.insert(search_dirs, qt.bindir_host) end
+    if qt.bindir then table.insert(search_dirs, qt.bindir) end
+    local windeployqt = find_file("windeployqt" .. (is_host("windows") and ".exe" or ""), search_dirs)
     assert(os.isexec(windeployqt), "windeployqt.exe not found!")
 
     -- find qml directory
@@ -100,7 +111,8 @@ function main(target, opt)
         argv = table.join(argv, user_flags)
     end
 
-    table.insert(argv, installfile)
+    -- windeployqt for both target and its deps
+    table.join2(argv, installfiles)
 
     os.vrunv(windeployqt, argv, {envs = envs})
 end

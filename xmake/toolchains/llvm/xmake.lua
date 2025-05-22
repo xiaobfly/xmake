@@ -24,19 +24,20 @@ toolchain("llvm")
     set_description("A collection of modular and reusable compiler and toolchain technologies")
     set_runtimes("c++_static", "c++_shared", "stdc++_static", "stdc++_shared")
 
-    set_toolset("cc",     "clang")
-    set_toolset("cxx",    "clang", "clang++")
-    set_toolset("mxx",    "clang", "clang++")
-    set_toolset("mm",     "clang")
-    set_toolset("cpp",    "clang -E")
-    set_toolset("as",     "clang")
-    set_toolset("ld",     "clang++", "clang")
-    set_toolset("sh",     "clang++", "clang")
-    set_toolset("ar",     "llvm-ar")
-    set_toolset("strip",  "llvm-strip")
-    set_toolset("ranlib", "llvm-ranlib")
-    set_toolset("objcopy","llvm-objcopy")
-    set_toolset("mrc",    "llvm-rc")
+    set_toolset("cc",      "clang")
+    set_toolset("cxx",     "clang", "clang++")
+    set_toolset("mxx",     "clang", "clang++")
+    set_toolset("mm",      "clang")
+    set_toolset("cpp",     "clang -E")
+    set_toolset("as",      "clang")
+    set_toolset("ld",      "clang++", "clang")
+    set_toolset("sh",      "clang++", "clang")
+    set_toolset("ar",      "llvm-ar")
+    set_toolset("strip",   "llvm-strip")
+    set_toolset("ranlib",  "llvm-ranlib")
+    set_toolset("objcopy", "llvm-objcopy")
+    set_toolset("mrc",     "llvm-rc")
+    set_toolset("dlltool", "llvm-dlltool")
 
     on_check("check")
 
@@ -47,32 +48,48 @@ toolchain("llvm")
             toolchain:add("runtimes", "MT", "MTd", "MD", "MDd")
         end
 
-        -- add march flags
-        local march
+        -- add target flags
+        local target
         if toolchain:is_plat("windows") and not is_host("windows") then
-            -- cross-compilation for windows
             if toolchain:is_arch("i386", "x86") then
-                march = "-target i386-pc-windows-msvc"
+                target = "i386-pc-windows-msvc"
             else
-                march = "-target x86_64-pc-windows-msvc"
+                target = "x86_64-pc-windows-msvc"
             end
-            toolchain:add("ldflags", "-fuse-ld=lld")
-            toolchain:add("shflags", "-fuse-ld=lld")
-        elseif toolchain:is_arch("x86_64", "x64") then
-            march = "-m64"
-        elseif toolchain:is_arch("i386", "x86") then
-            march = "-m32"
+        elseif toolchain:is_plat("macosx") then
+            local arch          = toolchain:arch()
+            local target_minver = toolchain:config("target_minver")
+            local appledev      = toolchain:config("appledev")
+            if target_minver then
+                target = ("%s-apple-macos%s"):format(arch, target_minver)
+                if appledev == "catalyst" then
+                    target = ("%s-apple-ios%s-macabi"):format(arch, target_minver)
+                end
+            end
+        elseif toolchain:is_plat("cross") then
+            target = toolchain:cross():gsub("(.*)%-$", "%1")
         end
-        if march then
-            toolchain:add("cxflags", march)
-            toolchain:add("mxflags", march)
-            toolchain:add("asflags", march)
-            toolchain:add("ldflags", march)
-            toolchain:add("shflags", march)
+        local target_flags
+        if target then
+            target_flags = "--target=" .. target
+        elseif toolchain:is_arch("x86_64", "x64") then
+            target_flags = "-m64"
+        elseif toolchain:is_arch("i386", "x86") then
+            target_flags = "-m32"
+        end
+        if target_flags then
+            toolchain:add("cxflags", target_flags)
+            toolchain:add("mxflags", target_flags)
+            toolchain:add("asflags", target_flags)
+            toolchain:add("ldflags", target_flags)
+            toolchain:add("shflags", target_flags)
         end
 
-        -- init flags for macOS
-        if toolchain:is_plat("macosx") then
+        -- init flags for platform
+        if toolchain:is_plat("windows") and not is_host("windows") then
+            toolchain:add("ldflags", "-fuse-ld=lld")
+            toolchain:add("shflags", "-fuse-ld=lld")
+        elseif toolchain:is_plat("macosx") then
             local xcode_dir     = get_config("xcode")
             local xcode_sdkver  = toolchain:config("xcode_sdkver")
             local xcode_sdkdir  = nil
@@ -93,6 +110,32 @@ toolchain("llvm")
                 end
             end
             toolchain:add("mxflags", "-fobjc-arc")
+        elseif toolchain:is_plat("cross") then
+            local sysroot
+            local sdkdir = toolchain:sdkdir()
+            local bindir = toolchain:bindir()
+            local cross = toolchain:cross():gsub("(.*)%-$", "%1")
+            if bindir and os.isexec(path.join(bindir, cross .. "-gcc" .. (is_host("windows") and ".exe" or ""))) then
+                local gcc_toolchain = path.directory(bindir)
+                toolchain:add("cxflags", "--gcc-toolchain=" .. gcc_toolchain)
+                toolchain:add("mxflags", "--gcc-toolchain=" .. gcc_toolchain)
+                toolchain:add("asflags", "--gcc-toolchain=" .. gcc_toolchain)
+                toolchain:add("ldflags", "--gcc-toolchain=" .. gcc_toolchain)
+                toolchain:add("shflags", "--gcc-toolchain=" .. gcc_toolchain)
+            end
+            if sdkdir and os.isdir(path.join(sdkdir, cross, "include")) then
+                sysroot = path.join(sdkdir, cross)
+            end
+            if sysroot then
+                if os.isdir(path.join(sysroot, "libc")) then
+                    sysroot = path.join(sysroot, "libc")
+                end
+                toolchain:add("cxflags", "--sysroot=" .. sysroot)
+                toolchain:add("mxflags", "--sysroot=" .. sysroot)
+                toolchain:add("asflags", "--sysroot=" .. sysroot)
+                toolchain:add("ldflags", "--sysroot=" .. sysroot)
+                toolchain:add("shflags", "--sysroot=" .. sysroot)
+            end
         end
 
         -- add bin search library for loading some dependent .dll files windows
@@ -101,3 +144,4 @@ toolchain("llvm")
             toolchain:add("runenvs", "PATH", bindir)
         end
     end)
+

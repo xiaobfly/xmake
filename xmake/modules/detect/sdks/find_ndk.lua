@@ -34,6 +34,7 @@ function _get_triple(arch)
     ,   ["armeabi"]     = "arm-linux-androideabi"   -- removed in ndk r17
     ,   ["armeabi-v7a"] = "arm-linux-androideabi"
     ,   ["arm64-v8a"]   = "aarch64-linux-android"
+    ,   ["riscv64"]     = "riscv64-linux-android"
     ,   i386            = "i686-linux-android"      -- deprecated
     ,   x86             = "i686-linux-android"
     ,   x86_64          = "x86_64-linux-android"
@@ -57,6 +58,9 @@ function _find_ndkdir(sdkdir)
         end
         if not sdkdir and is_host("macosx") then
             sdkdir = find_directory("NDK", "/Applications/AndroidNDK*.app/Contents")
+            if not sdkdir then
+                sdkdir = find_directory("*", "~/Library/Android/sdk/ndk")
+            end
             if not sdkdir then
                 sdkdir = "~/Library/Android/sdk/ndk-bundle"
             end
@@ -90,8 +94,8 @@ function _find_ndk_sdkver(sdkdir, bindir, sysroot, arch)
 
     -- try to select the best compatible version
     local sdkver = "16"
-    if use_llvm or arch == "arm64-v8a" then
-        sdkver = "21"
+    if use_llvm or arch == "arm64-v8a" or arch == "riscv64" then
+        sdkver = (arch == "riscv64") and "35" or "21"
     end
     if sysroot then
         if os.isdir(path.join(sysroot, "usr", "lib", triple, sdkver)) then
@@ -170,6 +174,7 @@ function _find_ndk(sdkdir, arch, ndk_sdkver, ndk_toolchains_ver)
     ,   ["armeabi"]     = "arm-linux-androideabi-" -- removed in ndk r17
     ,   ["armeabi-v7a"] = "arm-linux-androideabi-"
     ,   ["arm64-v8a"]   = "aarch64-linux-android-"
+    ,   ["riscv64"]     = "riscv64-linux-android-"
     ,   i386            = "i686-linux-android-"    -- deprecated
     ,   x86             = "i686-linux-android-"
     ,   x86_64          = "x86_64-linux-android-"
@@ -186,6 +191,7 @@ function _find_ndk(sdkdir, arch, ndk_sdkver, ndk_toolchains_ver)
     ,   ["armeabi"]     = "arm-linux-androideabi-*"
     ,   ["armeabi-v7a"] = "arm-linux-androideabi-*"
     ,   ["arm64-v8a"]   = "aarch64-linux-android-*"
+    ,   ["riscv64"]     = "riscv64-linux-android-*"
     ,   i386            = "x86-*"
     ,   x86             = "x86-*"
     ,   x86_64          = "x86_64-*"

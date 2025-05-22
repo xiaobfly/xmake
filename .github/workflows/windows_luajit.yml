@@ -39,6 +39,8 @@ jobs:
         run: |
           if ("${{ matrix.arch }}" -eq "x64") {
             Write-Output "RELEASE_NAME=win64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf-8 -Append
+          } elseif ("${{ matrix.arch }}" -eq "arm64") {
+            Write-Output "RELEASE_NAME=arm64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf-8 -Append
           } else {
             Write-Output "RELEASE_NAME=win32" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf-8 -Append
           }
@@ -71,16 +73,23 @@ jobs:
           xmake lua -v -D tests/run.lua
 
         # upload artifacts
-      - uses: actions/upload-artifact@v2
+      - name: Upload artifacts (exe)
+        if: matrix.os == 'windows-2022'
+        uses: actions/upload-artifact@v4
         with:
           name: xmake-latest.${{env.RELEASE_NAME}}.exe
           path: artifacts/${{env.RELEASE_NAME}}/xmake.exe
-      - uses: actions/upload-artifact@v2
+
+      - name: Upload artifacts (zip)
+        if: matrix.os == 'windows-2022'
+        uses: actions/upload-artifact@v4
         with:
           name: xmake-latest.${{ env.RELEASE_NAME }}.zip
           path: artifacts/${{env.RELEASE_NAME}}/xmake.zip
-      - uses: actions/upload-artifact@v2
+
+      - name: Upload artifacts (sha256)
+        if: matrix.os == 'windows-2022'
+        uses: actions/upload-artifact@v4
         with:
           name: xmake-latest.${{ env.RELEASE_NAME }}.sha256
           path: artifacts/${{env.RELEASE_NAME}}/shafile
-

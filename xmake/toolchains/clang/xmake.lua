@@ -30,24 +30,40 @@ toolchain("clang" .. suffix)
     set_description("A C language family frontend for LLVM" .. (version and (" (" .. version .. ")") or ""))
     set_runtimes("c++_static", "c++_shared", "stdc++_static", "stdc++_shared")
 
-    set_toolset("cc", "clang" .. suffix)
-    set_toolset("cxx", "clang" .. suffix, "clang++" .. suffix)
-    set_toolset("ld", "clang++" .. suffix, "clang" .. suffix)
-    set_toolset("sh", "clang++" .. suffix, "clang" .. suffix)
-    set_toolset("ar", "ar", "llvm-ar")
-    set_toolset("strip", "strip", "llvm-strip")
-    set_toolset("ranlib", "ranlib", "llvm-ranlib")
-    set_toolset("objcopy", "objcopy", "llvm-objcopy")
-    set_toolset("mm", "clang" .. suffix)
-    set_toolset("mxx", "clang" .. suffix, "clang++" .. suffix)
-    set_toolset("as", "clang" .. suffix)
-    set_toolset("mrc", "llvm-rc")
+    set_toolset("cc",      "clang" .. suffix)
+    set_toolset("cxx",     "clang" .. suffix, "clang++" .. suffix)
+    set_toolset("ld",      "clang++" .. suffix, "clang" .. suffix)
+    set_toolset("sh",      "clang++" .. suffix, "clang" .. suffix)
+    set_toolset("ar",      "ar",      "llvm-ar" .. suffix)
+    set_toolset("strip",   "strip",   "llvm-strip" .. suffix)
+    set_toolset("ranlib",  "ranlib",  "llvm-ranlib" .. suffix)
+    set_toolset("objcopy", "objcopy", "llvm-objcopy" .. suffix)
+    set_toolset("mm",      "clang" .. suffix)
+    set_toolset("mxx",     "clang" .. suffix, "clang++" .. suffix)
+    set_toolset("as",      "clang" .. suffix)
+    set_toolset("mrc",     "llvm-rc" .. suffix)
+    set_toolset("dlltool", "llvm-dlltool" .. suffix)
 
     on_check(function (toolchain)
+        if toolchain:is_plat("windows") then
+            local rootdir = path.join(path.directory(os.scriptdir()), "clang")
+            local result = import("check", {rootdir = rootdir})(toolchain, suffix)
+            if result then
+                return result
+            end
+        end
+
         return import("lib.detect.find_tool")("clang" .. suffix)
     end)
 
     on_load(function (toolchain)
+        import("core.project.project")
+
+        if project.policy("build.optimization.lto") then
+            toolchain:set("toolset", "ar",  "llvm-ar" .. suffix)
+            toolchain:set("toolset", "ranlib",  "llvm-ranlib" .. suffix)
+        end
+
         local march
         if toolchain:is_arch("x86_64", "x64") then
             march = "-m64"
@@ -63,6 +79,10 @@ toolchain("clang" .. suffix)
         end
         if toolchain:is_plat("windows") then
             toolchain:add("runtimes", "MT", "MTd", "MD", "MDd")
+        end
+        if toolchain:is_plat("windows", "mingw") then
+            local rootdir = path.join(path.directory(os.scriptdir()), "clang")
+            import("load", {rootdir = rootdir})(toolchain, suffix)
         end
     end)
 end

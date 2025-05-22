@@ -27,7 +27,6 @@ import("core.language.language")
 import("core.platform.platform")
 import("lib.detect.find_tool")
 import("private.utils.batchcmds")
-import("private.utils.rule_groups")
 import("plugins.project.utils.target_cmds", {rootdir = os.programdir()})
 
 -- tranlate path
@@ -335,7 +334,7 @@ function _add_toolchains(makefile, outputdir)
 
     -- add toolchains from targets
     for targetname, target in pairs(project.targets()) do
-        if not target:is_phony() then
+        if not _phony_or_headeronly(target) then
             local program = _get_program_from_target(target, target:linker():kind())
             if program then
                 makefile:print("%s_%s=%s", targetname, target:linker():kind():upper(), program)
@@ -354,10 +353,14 @@ function _add_toolchains(makefile, outputdir)
     makefile:print("")
 end
 
+function _phony_or_headeronly(target) 
+    return target:is_phony() or target:is_headeronly()
+end
+
 -- add flags
 function _add_flags(makefile, targetflags, outputdir)
     for targetname, target in pairs(project.targets()) do
-        if not target:is_phony() then
+        if not _phony_or_headeronly(target) then
             for _, sourcebatch in pairs(target:sourcebatches()) do
                 local sourcekind = sourcebatch.sourcekind
                 if sourcekind then
@@ -469,14 +472,11 @@ function _add_build_phony(makefile, target)
 end
 
 -- add custom commands before building target
-function _add_build_custom_commands_before(makefile, target, sourcegroups, outputdir)
+function _add_build_custom_commands_before(makefile, target, outputdir)
 
     -- add before commands
     -- we use irpairs(groups), because the last group that should be given the highest priority.
-    local cmds_before = {}
-    target_cmds.get_target_buildcmd(target, cmds_before, {suffix = "before"})
-    target_cmds.get_target_buildcmd_sourcegroups(target, cmds_before, sourcegroups, {suffix = "before"})
-    target_cmds.get_target_buildcmd_sourcegroups(target, cmds_before, sourcegroups)
+    local cmds_before = target_cmds.get_target_buildcmds(target, {stages = {"before", "on"}})
 
     local targetname = target:name()
     local label = "precmds_" .. targetname
@@ -494,10 +494,8 @@ function _add_build_custom_commands_before(makefile, target, sourcegroups, outpu
 end
 
 -- add custom commands after building target
-function _add_build_custom_commands_after(makefile, target, sourcegroups, outputdir)
-    local cmds_after = {}
-    target_cmds.get_target_buildcmd_sourcegroups(target, cmds_after, sourcegroups, {suffix = "after"})
-    target_cmds.get_target_buildcmd(target, cmds_after, {suffix = "after"})
+function _add_build_custom_commands_after(makefile, target, outputdir)
+    local cmds_after = target_cmds.get_target_buildcmds(target, {stages = {"after"}})
     if #cmds_after > 0 then
         for _, cmd in ipairs(cmds_after) do
             local command = _get_command_string(cmd, outputdir)
@@ -514,14 +512,11 @@ function _add_build_target(makefile, target, targetflags, outputdir)
     -- https://github.com/xmake-io/xmake/issues/2337
     target:data_set("plugin.project.kind", "makefile")
 
-    -- build sourcebatch groups first
-    local sourcegroups = rule_groups.build_sourcebatch_groups(target, target:sourcebatches())
-
     -- add custom commands before building target
-    local precmds_label = _add_build_custom_commands_before(makefile, target, sourcegroups, outputdir)
+    local precmds_label = _add_build_custom_commands_before(makefile, target, outputdir)
 
     -- is phony target?
-    if target:is_phony() then
+    if _phony_or_headeronly(target) then
         return _add_build_phony(makefile, target)
     end
 
@@ -547,8 +542,8 @@ function _add_build_target(makefile, target, targetflags, outputdir)
 
     -- make dependence for the dependent targets
     for _, depname in ipairs(target:get("deps")) do
-        local dep = project.target(depname)
-        makefile:write(" " .. (dep:is_phony() and depname or _get_relative_unix_path(dep:targetfile(), outputdir)))
+        local dep = project.target(depname, {namespace = target:namespace()})
+        makefile:write(" " .. (_phony_or_headeronly(dep) and depname or _get_relative_unix_path(dep:targetfile(), outputdir)))
     end
 
     -- make dependence for objects
@@ -602,7 +597,7 @@ function _add_build_target(makefile, target, targetflags, outputdir)
     makefile:writef("\t$(VV)%s\n", command)
 
     -- add custom commands after building target
-    _add_build_custom_commands_after(makefile, target, sourcegroups, outputdir)
+    _add_build_custom_commands_after(makefile, target, outputdir)
 
     -- end
     makefile:print("")
@@ -659,7 +654,7 @@ function _add_clean_target(makefile, target, outputdir)
         makefile:write(" clean_" .. dep)
     end
     makefile:print("")
-    if not target:is_phony() then
+    if not _phony_or_headeronly(target) then
         _add_remove_files(makefile, target:targetfile(), outputdir)
         _add_remove_files(makefile, target:symbolfile(), outputdir)
         _add_remove_files(makefile, target:objectfiles(), outputdir)
@@ -687,9 +682,10 @@ function _add_clean(makefile, outputdir)
 end
 
 function make(outputdir)
-
-    -- enter project directory
     local oldir = os.cd(os.projectdir())
+
+    -- prepare targets
+    target_cmds.prepare_targets()
 
     -- open the makefile
     local makefile = io.open(path.join(outputdir, "makefile"), "w")
@@ -715,7 +711,5 @@ function make(outputdir)
 
     -- close the makefile
     makefile:close()
-
-    -- leave project directory
     os.cd(oldir)
 end

@@ -21,6 +21,7 @@
 -- imports
 import("core.base.option")
 import("core.base.hashset")
+import("core.project.project")
 import("utils.archive")
 import("utils.binary.deplibs", {alias = "get_depend_libraries"})
 import("private.utils.batchcmds")
@@ -63,8 +64,8 @@ end
 
 -- we need to get all deplibs, e.g. app -> libfoo.so -> libbar.so ...
 -- @see https://github.com/xmake-io/xmake/issues/5325#issuecomment-2242597732
-function _get_target_package_deplibs(target, depends, libfiles, binaryfile)
-    local deplibs = get_depend_libraries(binaryfile, {plat = target:plat(), arch = target:arch()})
+function _get_target_package_deplibs(binaryfile, depends, libfiles, opt)
+    local deplibs = get_depend_libraries(binaryfile, {plat = opt.plat, arch = opt.arch})
     local depends_new = hashset.new()
     for _, deplib in ipairs(deplibs) do
         local libname = path.filename(deplib)
@@ -76,30 +77,61 @@ function _get_target_package_deplibs(target, depends, libfiles, binaryfile)
     for _, libfile in ipairs(libfiles) do
         local libname = path.filename(libfile)
         if depends_new:has(libname) then
-            _get_target_package_deplibs(target, depends, libfiles, libfile)
+            _get_target_package_deplibs(libfile, depends, libfiles, opt)
         end
     end
 end
 
 function _get_target_package_libfiles(target, opt)
+    if option.get("nopkgs") then
+        return {}
+    end
+    opt = opt or {}
     local libfiles = {}
     for _, pkg in ipairs(target:orderpkgs(opt)) do
         if pkg:enabled() and pkg:get("libfiles") then
             for _, libfile in ipairs(table.wrap(pkg:get("libfiles"))) do
                 local filename = path.filename(libfile)
-                if filename:endswith(".dll") or filename:endswith(".so") or filename:find("%.so%.%d+$") or filename:endswith(".dylib") then
+                if filename:endswith(".dll") or filename:endswith(".so") or filename:find("%.so[%.%d+]+$") or filename:endswith(".dylib") then
                     table.insert(libfiles, libfile)
                 end
             end
         end
     end
     -- we can only reserve used libraries
-    if target:is_binary() or target:is_shared() then
-        local depends = hashset.new()
-        _get_target_package_deplibs(target, depends, libfiles, target:targetfile())
-        table.remove_if(libfiles, function (_, libfile) return not depends:has(path.filename(libfile)) end)
+    if project.policy("install.strip_packagelibs") then
+        if target:is_binary() or target:is_shared() or opt.binaryfile then
+            local depends = hashset.new()
+            _get_target_package_deplibs(opt.binaryfile or target:targetfile(), depends, libfiles, {plat = target:plat(), arch = target:arch()})
+            table.remove_if(libfiles, function (_, libfile) return not depends:has(path.filename(libfile)) end)
+        end
     end
     return libfiles
+end
+
+-- get target libraries
+function _get_target_libfiles(target, libfiles, binaryfile, refs)
+    if not refs[target] then
+        local plaindeps = target:get("deps")
+        if plaindeps then
+            for _, depname in ipairs(plaindeps) do
+                local dep = target:dep(depname)
+                if dep then
+                    if dep:is_shared() then
+                        local depfile = dep:targetfile()
+                        if os.isfile(depfile) then
+                            table.insert(libfiles, depfile)
+                        end
+                        _get_target_libfiles(dep, libfiles, dep:targetfile(), refs)
+                    elseif dep:is_library() then
+                        _get_target_libfiles(dep, libfiles, binaryfile, refs)
+                    end
+                end
+            end
+        end
+        table.join2(libfiles, _get_target_package_libfiles(target, {binaryfile = binaryfile}))
+        refs[target] = true
+    end
 end
 
 -- copy file with symlinks
@@ -151,14 +183,14 @@ function _install_target_files(target, batchcmds_, opt)
     local srcfiles, dstfiles = target:installfiles(_get_target_installdir(package, target))
     if srcfiles and dstfiles then
         for idx, srcfile in ipairs(srcfiles) do
-            batchcmds_:cp(srcfile, dstfiles[idx])
+            batchcmds_:cp(srcfile, dstfiles[idx], {symlink = true})
         end
     end
     for _, dep in ipairs(target:orderdeps()) do
         local srcfiles, dstfiles = dep:installfiles(_get_target_installdir(package, dep), {interface = true})
         if srcfiles and dstfiles then
             for idx, srcfile in ipairs(srcfiles) do
-                batchcmds_:cp(srcfile, dstfiles[idx])
+                batchcmds_:cp(srcfile, dstfiles[idx], {symlink = true})
             end
         end
     end
@@ -190,23 +222,11 @@ function _install_target_shared_libraries(target, batchcmds_, opt)
 
     -- get all dependent shared libraries
     local libfiles = {}
-    for _, dep in ipairs(target:orderdeps()) do
-        if dep:kind() == "shared" then
-            local depfile = dep:targetfile()
-            if os.isfile(depfile) then
-                table.insert(libfiles, depfile)
-            end
-        end
-        table.join2(libfiles, _get_target_package_libfiles(dep, {interface = true}))
-    end
-    table.join2(libfiles, _get_target_package_libfiles(target))
-
-    -- deduplicate libfiles, prevent packages using the same libfiles from overwriting each other
+    _get_target_libfiles(target, libfiles, target:targetfile(), {})
     libfiles = table.unique(libfiles)
 
     -- do install
     for _, libfile in ipairs(libfiles) do
-        local filename = path.filename(libfile)
         _copy_file_with_symlinks(batchcmds_, libfile, bindir)
     end
 end
@@ -248,24 +268,13 @@ function _uninstall_target_shared_libraries(target, batchcmds_, opt)
 
     -- get all dependent shared libraries
     local libfiles = {}
-    for _, dep in ipairs(target:orderdeps()) do
-        if dep:kind() == "shared" then
-            local depfile = dep:targetfile()
-            if os.isfile(depfile) then
-                table.insert(libfiles, depfile)
-            end
-        end
-        table.join2(libfiles, _get_target_package_libfiles(dep, {interface = true}))
-    end
-    table.join2(libfiles, _get_target_package_libfiles(target))
-
-    -- deduplicate libfiles, prevent packages using the same libfiles from overwriting each other
+    _get_target_libfiles(target, libfiles, target:targetfile(), {})
     libfiles = table.unique(libfiles)
 
     -- do uninstall
     for _, libfile in ipairs(libfiles) do
         local filename = path.filename(libfile)
-        batchcmds_:rm(libfile, path.join(bindir, filename), {emptydirs = true})
+        batchcmds_:rm(path.join(bindir, filename), {emptydirs = true})
     end
 end
 
@@ -294,11 +303,10 @@ function _on_target_installcmd_shared(target, batchcmds_, opt)
 
     -- install *.lib for shared/windows (*.dll) target
     -- @see https://github.com/xmake-io/xmake/issues/714
-    local targetfile = target:targetfile()
-    local targetfile_lib = path.join(path.directory(targetfile), path.basename(targetfile) .. (target:is_plat("mingw") and ".dll.a" or ".lib"))
-    if os.isfile(targetfile_lib) then
+    local implibfile = target:artifactfile("implib")
+    if implibfile and os.isfile(implibfile) then
         batchcmds_:mkdir(libdir)
-        batchcmds_:cp(targetfile_lib, path.join(libdir, path.filename(targetfile_lib)))
+        batchcmds_:cp(implibfile, path.join(libdir, path.filename(implibfile)))
     end
 
     _install_target_headers(target, batchcmds_, opt)
@@ -554,7 +562,7 @@ end
 function _on_installcmd(package, batchcmds_)
     local srcfiles, dstfiles = package:installfiles()
     for idx, srcfile in ipairs(srcfiles) do
-        batchcmds_:cp(srcfile, dstfiles[idx])
+        batchcmds_:cp(srcfile, dstfiles[idx], {symlink = true})
     end
     for _, target in ipairs(package:targets()) do
         _get_target_installcmds(target, batchcmds_, {package = package})

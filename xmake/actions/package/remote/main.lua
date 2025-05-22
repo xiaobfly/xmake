@@ -25,12 +25,13 @@ import("core.project.rule")
 import("core.project.config")
 import("core.project.project")
 import("core.base.bit")
+import("private.detect.check_targetname")
 
 -- get library deps
 function _get_librarydeps(target)
     local librarydeps = {}
     for _, depname in ipairs(target:get("deps")) do
-        local dep = project.target(depname)
+        local dep = project.target(depname, {namespace = target:namespace()})
         if not ((target:is_binary() or target:is_shared()) and dep:is_static()) then
             table.insert(librarydeps, dep:name():lower())
         end
@@ -153,7 +154,7 @@ function main()
     -- package the given target?
     local targetname = option.get("target")
     if targetname then
-        local target = project.target(targetname)
+        local target = assert(check_targetname(targetname))
         _package_targets(target:orderdeps())
         _package_target(target)
     else

@@ -22,34 +22,39 @@
 import("core.base.option")
 import("core.project.config")
 import("core.tool.toolchain")
-import("core.tool.linker")
-import("core.tool.compiler")
 import("lib.detect.find_tool")
 import("private.utils.executable_path")
 import("private.utils.toolchain", {alias = "toolchain_utils"})
 
 -- get build directory
-function _get_buildir(package, opt)
-    if opt and opt.buildir then
-        return opt.buildir
+function _get_builddir(package, opt)
+    if opt and (opt.builddir or opt.buildir) then
+        if opt.buildir then
+            wprint("{buildir = } has been deprecated, please use {builddir = } in meson.install")
+        end
+        return opt.builddir or opt.buildir
     else
-        _g.buildir = _g.buildir or package:buildir()
-        return _g.buildir
+        _g.builddir = _g.builddir or package:builddir()
+        return _g.builddir
     end
-end
-
--- map compiler flags
-function _map_compflags(package, langkind, name, values)
-    return compiler.map_flags(langkind, name, values, {target = package})
-end
-
--- map linker flags
-function _map_linkflags(package, targetkind, sourcekinds, name, values)
-    return linker.map_flags(targetkind, sourcekinds, name, values, {target = package})
 end
 
 -- get pkg-config, we need force to find it, because package install environments will be changed
 function _get_pkgconfig(package)
+    -- meson need fullpath pkgconfig
+    -- @see https://github.com/xmake-io/xmake/issues/5474
+    local dep = package:dep("pkgconf") or package:dep("pkg-config")
+    if dep then
+        local suffix = dep:is_plat("windows", "mingw") and ".exe" or ""
+        local pkgconf = path.join(dep:installdir("bin"), "pkgconf" .. suffix)
+        if os.isfile(pkgconf) then
+            return pkgconf
+        end
+        local pkgconfig = path.join(dep:installdir("bin"), "pkg-config" .. suffix)
+        if os.isfile(pkgconfig) then
+            return pkgconfig
+        end
+    end
     if package:is_plat("windows") then
         local pkgconf = find_tool("pkgconf", {force = true})
         if pkgconf then
@@ -67,7 +72,7 @@ function _translate_flags(package, flags)
     if package:is_plat("android") then
         local flags_new = {}
         for _, flag in ipairs(flags) do
-            if flag:startswith("-gcc-toolchain ") or flag:startswith("-target ") or flag:startswith("-isystem ") then
+            if flag:startswith("--gcc-toolchain=") or flag:startswith("--target=") or flag:startswith("-isystem ") then
                 table.join2(flags_new, flag:split(" ", {limit = 2}))
             else
                 table.insert(flags_new, flag)
@@ -171,8 +176,8 @@ function _insert_cross_configs(package, file, opt)
         file:print("endian = 'little'")
     elseif package:is_plat("wasm") then
         file:print("system = 'emscripten'")
-        file:print("cpu_family = 'wasm32'")
-        file:print("cpu = 'wasm32'")
+        file:print("cpu_family = '%s'", package:arch())
+        file:print("cpu = '%s'", package:arch())
         file:print("endian = 'little'")
     else
         local cpu = package:arch()
@@ -201,7 +206,7 @@ end
 -- get cross file
 function _get_configs_file(package, opt)
     opt = opt or {}
-    local configsfile = path.join(_get_buildir(package, opt), "configs_file.txt")
+    local configsfile = path.join(_get_builddir(package, opt), "configs_file.txt")
     if not os.isfile(configsfile) then
         local file = io.open(configsfile, "w")
         -- binaries
@@ -251,10 +256,14 @@ function _get_configs_file(package, opt)
         if ranlib then
             file:print("ranlib=['%s']", executable_path(ranlib))
         end
-        if package:is_plat("mingw") then
+        if package:is_plat("mingw", "msys", "windows") then
             local mrc = package:build_getenv("mrc")
             if mrc then
                 file:print("windres=['%s']", executable_path(mrc))
+            end
+            local dlltool = package:build_getenv("dlltool")
+            if dlltool then
+                file:print("dlltool=['%s']", executable_path(dlltool))
             end
         end
         local cmake = find_tool("cmake")
@@ -289,13 +298,9 @@ function _get_configs_file(package, opt)
         -- add runtimes flags
         for _, runtime in ipairs(package:runtimes()) do
             if not runtime:startswith("M") then
-                local fake_target = {is_shared = function(_) return false end,
-                                     sourcekinds = function(_) return "cxx" end}
-                table.join2(cxxflags, _map_compflags(fake_target, "cxx", "runtime", {runtime}))
-                table.join2(ldflags, _map_linkflags(fake_target, "binary", {"cxx"}, "runtime", {runtime}))
-                fake_target = {is_shared = function(_) return true end,
-                               sourcekinds = function(_) return "cxx" end}
-                table.join2(shflags, _map_linkflags(fake_target, "shared", {"cxx"}, "runtime", {runtime}))
+                table.join2(cxxflags, toolchain_utils.map_compflags_for_package(package, "cxx", "runtime", {runtime}))
+                table.join2(ldflags, toolchain_utils.map_linkflags_for_package(package, "binary", {"cxx"}, "runtime", {runtime}))
+                table.join2(shflags, toolchain_utils.map_linkflags_for_package(package, "shared", {"cxx"}, "runtime", {runtime}))
             end
         end
         if #cflags > 0 then
@@ -325,6 +330,7 @@ function _get_configs(package, configs, opt)
 
     -- add prefix
     configs = configs or {}
+    opt._configs_str = string.serialize(configs, {indent = false, strip = true})
     table.insert(configs, "--prefix=" .. (opt.prefix or package:installdir()))
     table.insert(configs, "--libdir=lib")
 
@@ -346,8 +352,17 @@ function _get_configs(package, configs, opt)
         table.insert(configs, "-Db_sanitize=address")
     end
 
+    -- add library kind
+    if package:is_library() then
+        local has_already_libflag = opt._configs_str and opt._configs_str:find("default_library", 1, true)
+        if not has_already_libflag then
+            table.insert(configs, "-Ddefault_library=".. (package:config("shared") and "shared" or "static"))
+        end
+    end
+
     -- add vs runtimes flags
     if package:is_plat("windows") then
+        table.insert(configs, "--vsenv")
         if package:has_runtime("MT") then
             table.insert(configs, "-Db_vscrt=mt")
         elseif package:has_runtime("MTd") then
@@ -371,7 +386,7 @@ function _get_configs(package, configs, opt)
     end
 
     -- add build directory
-    table.insert(configs, _get_buildir(package, opt))
+    table.insert(configs, _get_builddir(package, opt))
     return configs
 end
 
@@ -390,22 +405,37 @@ end
 -- fix libname on windows
 function _fix_libname_on_windows(package)
     for _, lib in ipairs(os.files(path.join(package:installdir("lib"), "lib*.a"))) do
-        os.mv(lib, lib:gsub("(.+)\\lib(.-)%.a", "%1\\%2.lib"))
+        os.mv(lib, (lib:gsub("(.+)\\lib(.-)%.a", "%1\\%2.lib")))
     end
 end
 
 -- get cflags from package deps
 function _get_cflags_from_packagedeps(package, opt)
-    local result = {}
+    local values
     for _, depname in ipairs(opt.packagedeps) do
-        local dep = type(depname) ~= "string" and depname or package:dep(depname)
+        local dep = type(depname) ~= "string" and depname or package:librarydep(depname)
         if dep then
             local fetchinfo = dep:fetch()
             if fetchinfo then
-                table.join2(result, _map_compflags(package, "cxx", "define", fetchinfo.defines))
-                table.join2(result, _map_compflags(package, "cxx", "includedir", fetchinfo.includedirs))
-                table.join2(result, _map_compflags(package, "cxx", "sysincludedir", fetchinfo.sysincludedirs))
+                if values then
+                    values = values .. fetchinfo
+                else
+                    values = fetchinfo
+                end
             end
+        end
+    end
+    -- @see https://github.com/xmake-io/xmake-repo/pull/4973#issuecomment-2295890196
+    local result = {}
+    if values then
+        if values.defines then
+            table.join2(result, toolchain_utils.map_compflags_for_package(package, "cxx", "define", values.defines))
+        end
+        if values.includedirs then
+            table.join2(result, toolchain_utils.map_compflags_for_package(package, "cxx", "includedir", values.includedirs))
+        end
+        if values.sysincludedirs then
+            table.join2(result, toolchain_utils.map_compflags_for_package(package, "cxx", "sysincludedir", values.sysincludedirs))
         end
     end
     return _translate_flags(package, result)
@@ -413,16 +443,33 @@ end
 
 -- get ldflags from package deps
 function _get_ldflags_from_packagedeps(package, opt)
-    local result = {}
+    local values
     for _, depname in ipairs(opt.packagedeps) do
-        local dep = type(depname) ~= "string" and depname or package:dep(depname)
+        local dep = type(depname) ~= "string" and depname or package:librarydep(depname)
         if dep then
             local fetchinfo = dep:fetch()
             if fetchinfo then
-                table.join2(result, _map_linkflags(package, "binary", {"cxx"}, "linkdir", fetchinfo.linkdirs))
-                table.join2(result, _map_linkflags(package, "binary", {"cxx"}, "link", fetchinfo.links))
-                table.join2(result, _map_linkflags(package, "binary", {"cxx"}, "syslink", fetchinfo.syslinks))
+                if values then
+                    values = values .. fetchinfo
+                else
+                    values = fetchinfo
+                end
             end
+        end
+    end
+    local result = {}
+    if values then
+        if values.linkdirs then
+            table.join2(result, toolchain_utils.map_linkflags_for_package(package, "binary", {"cxx"}, "linkdir", values.linkdirs))
+        end
+        if values.links then
+            table.join2(result, toolchain_utils.map_linkflags_for_package(package, "binary", {"cxx"}, "link", values.links))
+        end
+        if values.syslinks then
+            table.join2(result, toolchain_utils.map_linkflags_for_package(package, "binary", {"cxx"}, "syslink", values.syslinks))
+        end
+        if values.frameworks then
+            table.join2(result, toolchain_utils.map_linkflags_for_package(package, "binary", {"cxx"}, "framework", values.frameworks))
         end
     end
     return _translate_flags(package, result)
@@ -431,6 +478,12 @@ end
 -- get the build environments
 function buildenvs(package, opt)
     local envs = {}
+    if not is_host("windows") and package:is_plat("windows") then
+        local msvc = package:toolchain("msvc") or package:toolchain("clang") or package:toolchain("clang-cl")
+        assert(msvc:check(), "msvc envs not found!") -- we need to check vs envs if it has been not checked yet
+        envs = os.joinenvs(msvc:runenvs())
+    end
+
     opt = opt or {}
     if package:is_plat(os.host()) then
         local cflags   = table.join(table.wrap(package:config("cxflags")), package:config("cflags"))
@@ -464,6 +517,9 @@ function buildenvs(package, opt)
     end
     local ACLOCAL_PATH = {}
     local PKG_CONFIG_PATH = {}
+    local CMAKE_LIBRARY_PATH = {}
+    local CMAKE_INCLUDE_PATH = {}
+    local CMAKE_PREFIX_PATH  = {}
     for _, dep in ipairs(package:librarydeps({private = true})) do
         local pkgconfig = path.join(dep:installdir(), "lib", "pkgconfig")
         if os.isdir(pkgconfig) then
@@ -473,6 +529,17 @@ function buildenvs(package, opt)
         if os.isdir(pkgconfig) then
             table.insert(PKG_CONFIG_PATH, pkgconfig)
         end
+        -- meson may also use cmake to find dependencies
+        if dep:is_system() then
+            local fetchinfo = dep:fetch()
+            if fetchinfo then
+                table.join2(CMAKE_LIBRARY_PATH, fetchinfo.linkdirs)
+                table.join2(CMAKE_INCLUDE_PATH, fetchinfo.includedirs)
+                table.join2(CMAKE_INCLUDE_PATH, fetchinfo.sysincludedirs)
+            end
+        else
+            table.join2(CMAKE_PREFIX_PATH, dep:installdir())
+        end
     end
     -- some binary packages contain it too. e.g. libtool
     for _, dep in ipairs(package:orderdeps()) do
@@ -481,8 +548,11 @@ function buildenvs(package, opt)
             table.insert(ACLOCAL_PATH, aclocal)
         end
     end
-    envs.ACLOCAL_PATH    = path.joinenv(ACLOCAL_PATH)
-    envs.PKG_CONFIG_PATH = path.joinenv(PKG_CONFIG_PATH)
+    envs.ACLOCAL_PATH       = path.joinenv(ACLOCAL_PATH)
+    envs.CMAKE_LIBRARY_PATH = path.joinenv(CMAKE_LIBRARY_PATH)
+    envs.CMAKE_INCLUDE_PATH = path.joinenv(CMAKE_INCLUDE_PATH)
+    envs.CMAKE_PREFIX_PATH  = path.joinenv(CMAKE_PREFIX_PATH)
+    envs.PKG_CONFIG_PATH    = path.joinenv(PKG_CONFIG_PATH)
     return envs
 end
 
@@ -519,9 +589,9 @@ function build(package, configs, opt)
     generate(package, configs, opt)
 
     -- configurate build
-    local buildir = _get_buildir(package, opt)
+    local builddir = _get_builddir(package, opt)
     local njob = opt.jobs or option.get("jobs") or tostring(os.default_njob())
-    local argv = {"compile", "-C", buildir}
+    local argv = {"compile", "-C", builddir}
     if option.get("diagnosis") then
         table.insert(argv, "-v")
     end
@@ -541,8 +611,8 @@ function install(package, configs, opt)
     build(package, configs, opt)
 
     -- configure install
-    local buildir = _get_buildir(package, opt)
-    local argv = {"install", "-C", buildir}
+    local builddir = _get_builddir(package, opt)
+    local argv = {"install", "-C", builddir}
 
     -- do install
     local meson = assert(find_tool("meson"), "meson not found!")

@@ -4,6 +4,136 @@
 
 ### New features
 
+* [#5926](https://github.com/xmake-io/xmake/issues/5926): Add MIDL support
+* [#6414](https://github.com/xmake-io/xmake/pull/6414): Add platform.windows.subsystem rule
+
+### Changes
+
+* [#6202](https://github.com/xmake-io/xmake/issues/6202): Improve rule API and build dependency order
+* [#5624](https://github.com/xmake-io/xmake/discussions/5624): Enable auto build when calling xmake run by default
+* [#5526](https://github.com/xmake-io/xmake/discussions/5526): Use MD/MDd runtimes for msvc by default
+* [#5545](https://github.com/xmake-io/xmake/discussions/5545): Use ninja generator for cmake package by default
+* [#6355](https://github.com/xmake-io/xmake/pull/6355): Support customizing implib path of MinGW/MSVC
+* [#6373](https://github.com/xmake-io/xmake/pull/6373): Improve c++ modules support
+
+## v2.9.9
+
+### New features
+
+* [#6137](https://github.com/xmake-io/xmake/issues/6137): IDE integration
+* [#6138](https://github.com/xmake-io/xmake/issues/6138): Use libxmake to build binary with xmake lua apis
+* [#6154](https://github.com/xmake-io/xmake/issues/6154): Add kotlin language and kotlin-native compiler and packages support
+* [#6279](https://github.com/xmake-io/xmake/pull/6279): Add msvc midl support
+
+### Changes
+
+* [#6182](https://github.com/xmake-io/xmake/pull/6182): Support msstl modules for clang
+* [#6281](https://github.com/xmake-io/xmake/pull/6281): Support Verilator target build to shared library
+* [#6270](https://github.com/xmake-io/xmake/pull/6270): Improve conan generator
+* [#6243](https://github.com/xmake-io/xmake/pull/6243): Improve llvm toolchain to support for cross platform
+* Support for CMake 4.0
+
+### Bugs fixed
+
+* [#6292](https://github.com/xmake-io/xmake/issues/6292): Fix namespace issue
+
+## v2.9.8
+
+### New features
+
+* [#5994](https://github.com/xmake-io/xmake/issues/5994): Profile process performance
+* [#5995](https://github.com/xmake-io/xmake/pull/5995): Add profile support for vs generator
+* [#5949](https://github.com/xmake-io/xmake/pull/5949): Add rule nodejs.module
+* [#3380](https://github.com/xmake-io/xmake/issues/3380): Add namespace support
+* [#5945](https://github.com/xmake-io/xmake/issues/5945): Check pkgconfig/cmake importfiles for package
+* [#6054](https://github.com/xmake-io/xmake/issues/6054): Add xmake bundle for linux
+* [#6071](https://github.com/xmake-io/xmake/issues/6071): Improve to download package for git url, support for sparse-checkout
+* [#5163](https://github.com/xmake-io/xmake/issues/5163): Support TI-CGT C2000/C6000 compiler
+* [#5344](https://github.com/xmake-io/xmake/issues/5344): Support IAR ARM C/C++ compiler
+* [#5554](https://github.com/xmake-io/xmake/issues/5554): Add custom unknown toolchains support
+
+### Changes
+
+* [#6056](https://github.com/xmake-io/xmake/pull/6056): Build and release xmake/arm64 on windows.
+* [#6097](https://github.com/xmake-io/xmake/pull/6097): Add qt_host Option to Enable Cross-Platform Qt Builds Using Host SDK Tools
+* [#6120](https://github.com/xmake-io/xmake/issues/6120): Add custom preprocessor for configfiles
+* [#6088](https://github.com/xmake-io/xmake/issues/6088): Improve configfiles to generate export macro
+
+### Bugs fixed
+
+* [#272](https://github.com/tboox/tbox/issues/272): Fix xmake stuck when readfile always return zero for msvc + /O1
+* [#6089](https://github.com/tboox/tbox/issues/6089): Fix depend.is_changed for cuda
+
+## v2.9.7
+
+### New features
+
+* [#5813](https://github.com/xmake-io/xmake/pull/5813): Add `before_config` and `after_config` for rule
+* [#5848](https://github.com/xmake-io/xmake/issues/5848): Support custom MSVC build tools, e.g. PortableBuildTools and msvc-wine
+* [#5880](https://github.com/xmake-io/xmake/pull/5880): Use msvc package to build project
+* [#5884](https://github.com/xmake-io/xmake/issues/5884): Add installtips for package
+* [#5894](https://github.com/xmake-io/xmake/issues/5894): Add package.merge_staticlibs policy to merge package libs
+* [#5948](https://github.com/xmake-io/xmake/pull/5948): Add `lua.native-object` rule
+* [#5911](https://github.com/xmake-io/xmake/issues/5911): Support for nuget packages
+
+### Changes
+
+* [#5817](https://github.com/xmake-io/xmake/pull/5817): Improve default pic for packages
+* [#5869](https://github.com/xmake-io/xmake/pull/5869): Add libstdc++ standard library modules support for gcc
+* [#5923](https://github.com/xmake-io/xmake/pull/5923): Solve the package version and configs conflict
+
+### Bugs fixed
+
+* [#5856](https://github.com/xmake-io/xmake/issues/5856): Fix compile c++modules for clang
+* [#5858](https://github.com/xmake-io/xmake/issues/5858): Fix the precompiled header for gcc
+
+## v2.9.6
+
+### New features
+
+* [#5527](https://github.com/xmake-io/xmake/issues/5527): Add `set_policy("compatibility.version", "3.0")` to preview v3.0 features.
+* [#5649](https://github.com/xmake-io/xmake/pull/5649): Add `package.check_fcsnippets`
+
+### Changes
+
+* [#5631](https://github.com/xmake-io/xmake/pull/5631): Add `as_needed` for `add_linkgroups`
+* [#5702](https://github.com/xmake-io/xmake/issues/5702): Improve hash module
+* [#5688](https://github.com/xmake-io/xmake/pull/5688): Improve hashset module
+* [#5711](https://github.com/xmake-io/xmake/issues/5711): Support to parse include deps for sdcc
+* [#5727](https://github.com/xmake-io/xmake/issues/5727): Improve configs for add_requires
+* [#5762](https://github.com/xmake-io/xmake/pull/5762): Improve bin2c speed
+
+### Bugs fixed
+
+* [#5645](https://github.com/xmake-io/xmake/issues/5645): Fix `xmake watch` for linux
+* [#5686](https://github.com/xmake-io/xmake/pull/5686): Fix module scanning
+
+## v2.9.5
+
+### New features
+
+* [#5462](https://github.com/xmake-io/xmake/pull/5462): Add `xmake l cli.bisect`
+* [#5488](https://github.com/xmake-io/xmake/pull/5488): Support for using cosmocc to build xmake binary
+* [#5491](https://github.com/xmake-io/xmake/pull/5491): Provide single xmake binary with embeded lua files
+* [#5580](https://github.com/xmake-io/xmake/issues/5580): Add `@builtin/xrepo` to add envs for `xrepo env shell`
+
+### Changes
+
+* [#5507](https://github.com/xmake-io/xmake/issues/5507): Use treeless to improve git.clone
+* [#5536](https://github.com/xmake-io/xmake/pull/5536): Add jar generate in swig mode
+* [#5573](https://github.com/xmake-io/xmake/issues/5573): Improve vsxmake generator performance
+* [#5601](https://github.com/xmake-io/xmake/issues/5601): Improve utils.symbols.export_all rule to filter sourcefile path
+
+### Bugs fixed
+
+* [#4750](https://github.com/xmake-io/xmake/issues/4750): Fix compile_commands generator for `xmake tests`
+* [#5465](https://github.com/xmake-io/xmake/pull/5465): Fix lock package requires
+* [#4760](https://github.com/xmake-io/xmake/issues/4760): Fix distcc client issue
+
+## v2.9.4
+
+### New features
+
 * [#5278](https://github.com/xmake-io/xmake/issues/5278): Add `build.intermediate_directory` policy to disable and custom intermediate directory
 * [#5313](https://github.com/xmake-io/xmake/issues/5313): Add windows arm/arm64ec support
 * [#5296](https://github.com/xmake-io/xmake/issues/5296): Add Intel LLVM Fortran Compiler support
@@ -15,7 +145,7 @@
 * [#5251](https://github.com/xmake-io/xmake/issues/5251): Update 7z/curl for windows installer
 * [#5286](https://github.com/xmake-io/xmake/issues/5286): Improve json to parse hex string
 * [#5302](https://github.com/xmake-io/xmake/pull/5302): Improve Vala support
-* [#5335](https://github.com/xmake-io/xmake/pull/5335): Improve `xmake install` and `xpack`
+* [#5335](https://github.com/xmake-io/xmake/pull/5335): Improve `xmake install` and `xpack`, Add `set_prefixdir` api for target
 * [#5387](https://github.com/xmake-io/xmake/pull/5387): Improve `xmake test`
 * [#5376](https://github.com/xmake-io/xmake/pull/5376): Improve module objectfiles handling and moduleonly package
 
@@ -1854,6 +1984,136 @@
 
 ### 新特性
 
+* [#5926](https://github.com/xmake-io/xmake/issues/5926): 添加 MIDL 支持
+* [#6414](https://github.com/xmake-io/xmake/pull/6414): 添加 platform.windows.subsystem 规则
+
+### 改进
+
+* [#6202](https://github.com/xmake-io/xmake/issues/6202): 改进 rule API 和构建顺序支持，提供统一 jobgraph 调度
+* [#5624](https://github.com/xmake-io/xmake/discussions/5624): `xmake run` 运行默认自动构建
+* [#5526](https://github.com/xmake-io/xmake/discussions/5526): msvc 默认切换到 MD/MDd 运行时
+* [#5545](https://github.com/xmake-io/xmake/discussions/5545): 构建 cmake 包，默认使用 Ninja 生成器
+* [#6355](https://github.com/xmake-io/xmake/pull/6355): 支持自定义 implib 路径和访问
+* [#6373](https://github.com/xmake-io/xmake/pull/6373): 改进 c++ modules 支持
+
+## v2.9.9
+
+### 新特性
+
+* [#6137](https://github.com/xmake-io/xmake/issues/6137): IDE 整合
+* [#6138](https://github.com/xmake-io/xmake/issues/6138): 使用 libxmake/xmake APIs 去构建二进制
+* [#6154](https://github.com/xmake-io/xmake/issues/6154): 添加 kotlin native 构建支持和包依赖集成支持
+* [#6279](https://github.com/xmake-io/xmake/pull/6279): 添加 msvc midl 支持
+
+### 改进
+
+* [#6182](https://github.com/xmake-io/xmake/pull/6182): 改进 clang/clang-cl 支持 msstl 模块
+* [#6281](https://github.com/xmake-io/xmake/pull/6281): 支持 Verilator 动态库
+* [#6270](https://github.com/xmake-io/xmake/pull/6270): 改进 conan 生成器
+* [#6243](https://github.com/xmake-io/xmake/pull/6243): 改进 llvm 工具链对交叉编译的支持
+* 三方包安装支持 CMake 4.0
+
+### Bugs 修复
+
+* [#6292](https://github.com/xmake-io/xmake/issues/6292): 修复 namespace 问题
+
+## v2.9.8
+
+### 新特性
+
+* [#5994](https://github.com/xmake-io/xmake/issues/5994): 分析进程执行性能
+* [#5995](https://github.com/xmake-io/xmake/pull/5995): 为 vs generator 添加 profile 支持
+* [#5949](https://github.com/xmake-io/xmake/pull/5949): 添加 nodejs.module 规则
+* [#3380](https://github.com/xmake-io/xmake/issues/3380): 添加命名空间支持
+* [#5945](https://github.com/xmake-io/xmake/issues/5945): 检测 pkgconfig/cmake 导入文件
+* [#6054](https://github.com/xmake-io/xmake/issues/6054): 为 linux 添加 xmake bundle 包
+* [#6071](https://github.com/xmake-io/xmake/issues/6071): 改进 git 包下载，支持仅仅 clone 指定子目录
+* [#5163](https://github.com/xmake-io/xmake/issues/5163): 支持 TI-CGT C2000/C6000 编译器
+* [#5344](https://github.com/xmake-io/xmake/issues/5344): 支持 IAR ARM C/C++ 编译器
+* [#5554](https://github.com/xmake-io/xmake/issues/5554): 添加自定义未知工具链支持
+
+### 改进
+
+* [#6056](https://github.com/xmake-io/xmake/pull/6056): 添加 CI 去构建发布 windows arm64 版本。
+* [#6097](https://github.com/xmake-io/xmake/pull/6097): 添加 qt_host 支持交叉编译 Qt 项目
+* [#6120](https://github.com/xmake-io/xmake/issues/6120): 改进 configfiles 添加自定义预处理支持
+* [#6088](https://github.com/xmake-io/xmake/issues/6088): 改进 configfiles 去生成导出宏
+
+### Bugs 修复
+
+* [#272](https://github.com/tboox/tbox/issues/272): 修复 msvc + /O1 时候，错误的编译器优化导致 xmake 加载卡住
+* [#6089](https://github.com/tboox/tbox/issues/6089): 修复 depend.is_changed
+
+## v2.9.7
+
+### 新特性
+
+* [#5813](https://github.com/xmake-io/xmake/pull/5813): 为 rule 添加 `before_config` 和 `after_config`
+* [#5848](https://github.com/xmake-io/xmake/issues/5848): 支持自定义 MSVC 构建工具, PortableBuildTools 和 msvc-wine
+* [#5880](https://github.com/xmake-io/xmake/pull/5880): 支持使用 msvc 包去构建工程
+* [#5884](https://github.com/xmake-io/xmake/issues/5884): 为包添加自定义安装提示
+* [#5894](https://github.com/xmake-io/xmake/issues/5894): 添加 package.merge_staticlibs 策略去合并包安装的静态库
+* [#5948](https://github.com/xmake-io/xmake/pull/5948): 添加 `lua.native-object` 规则
+* [#5911](https://github.com/xmake-io/xmake/issues/5911): 支持 nuget 包集成
+
+### 改进
+
+* [#5817](https://github.com/xmake-io/xmake/pull/5817): 改进安装包的默认 pic 配置
+* [#5869](https://github.com/xmake-io/xmake/pull/5869): 为 gcc 添加 libstdc++ 标准库模块的支持
+* [#5923](https://github.com/xmake-io/xmake/pull/5923): 解决包依赖链中版本和配置冲突
+
+### Bugs 修复
+
+* [#5856](https://github.com/xmake-io/xmake/issues/5856): 修复 c++modules 在 clang 下的编译
+* [#5858](https://github.com/xmake-io/xmake/issues/5858): 修复 gcc 的头文件预编译问题
+
+## v2.9.6
+
+### 新特性
+
+* [#5527](https://github.com/xmake-io/xmake/issues/5527): 添加 `set_policy("compatibility.version", "3.0")` 提前预览体验 3.0 特性
+* [#5649](https://github.com/xmake-io/xmake/pull/5649): 添加 `package.check_fcsnippets`
+
+### 改进
+
+* [#5631](https://github.com/xmake-io/xmake/pull/5631): 为 `add_linkgroups` 添加 `as_needed`
+* [#5702](https://github.com/xmake-io/xmake/issues/5702): 改进 hash 模块
+* [#5688](https://github.com/xmake-io/xmake/pull/5688): 改进 hashset
+* [#5711](https://github.com/xmake-io/xmake/issues/5711): 为 sdcc 支持解析 include 依赖
+* [#5727](https://github.com/xmake-io/xmake/issues/5727): 为 add_requires 改进 configs 配置
+* [#5762](https://github.com/xmake-io/xmake/pull/5762): 改进 bin2c 速度
+
+### Bugs 修复
+
+* [#5645](https://github.com/xmake-io/xmake/issues/5645): 修复 `xmake watch` 在 linux 无法监听递归文件问题
+* [#5686](https://github.com/xmake-io/xmake/pull/5686): 修复模块扫描
+
+## v2.9.5
+
+### 新特性
+
+* [#5462](https://github.com/xmake-io/xmake/pull/5462): 添加 `xmake l cli.bisect`
+* [#5488](https://github.com/xmake-io/xmake/pull/5488): 支持使用 cosmocc 去构建 xmake 自身二进制
+* [#5491](https://github.com/xmake-io/xmake/pull/5491): 支持提供内嵌 lua 文件的单个 xmake 二进制文件
+* [#5580](https://github.com/xmake-io/xmake/issues/5580): 添加 `@builtin/xrepo` 辅助模块，为 `xrepo env shell` 实现快速设置环境变量
+
+### 改进
+
+* [#5507](https://github.com/xmake-io/xmake/issues/5507): 改进 git clone 下载速度
+* [#5536](https://github.com/xmake-io/xmake/pull/5536): 在 swig 模式中添加 jar 生成支持
+* [#5573](https://github.com/xmake-io/xmake/issues/5573): 改进 vsxmake generator 性能
+* [#5601](https://github.com/xmake-io/xmake/issues/5601): 改进 utils.symbols.export_all 规则去过滤源文件路径
+
+### Bugs 修复
+
+* [#4750](https://github.com/xmake-io/xmake/issues/4750): 修复 compile_commands 生成器，支持 `xmake tests`
+* [#5465](https://github.com/xmake-io/xmake/pull/5465): 修复 package requires lock
+* [#4760](https://github.com/xmake-io/xmake/issues/4760): 修复 distcc 分布式编译问题
+
+## v2.9.4
+
+### 新特性
+
 * [#5278](https://github.com/xmake-io/xmake/issues/5278): 添加 `build.intermediate_directory` 策略去禁用中间目录生成
 * [#5313](https://github.com/xmake-io/xmake/issues/5313): 添加 windows arm/arm64ec 支持
 * [#5296](https://github.com/xmake-io/xmake/issues/5296): 添加 Intel LLVM Fortran 编译器支持
@@ -1865,7 +2125,7 @@
 * [#5251](https://github.com/xmake-io/xmake/issues/5251): 为 windows installer 更新内置的 7z/curl
 * [#5286](https://github.com/xmake-io/xmake/issues/5286): 改进 json 支持16进制解析
 * [#5302](https://github.com/xmake-io/xmake/pull/5302): 改进 Vala 支持
-* [#5335](https://github.com/xmake-io/xmake/pull/5335): 改进 `xmake install` 和 `xpack`
+* [#5335](https://github.com/xmake-io/xmake/pull/5335): 改进 `xmake install` 和 `xpack`，添加 `set_prefixdir` 接口
 * [#5387](https://github.com/xmake-io/xmake/pull/5387): 改进 `xmake test`
 * [#5376](https://github.com/xmake-io/xmake/pull/5376): 改进 C++ module 对象列表处理和 moduleonly 包支持
 

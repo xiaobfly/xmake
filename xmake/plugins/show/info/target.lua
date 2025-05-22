@@ -22,8 +22,8 @@
 import("core.base.option")
 import("core.base.hashset")
 import("core.project.config")
-import("core.project.project")
 import("core.language.language")
+import("private.detect.check_targetname")
 
 -- get source info string
 function _get_sourceinfo_str(target, name, item, opt)
@@ -78,11 +78,11 @@ function _get_values_from_pkgs(target, name)
                     local info = components[component_name]
                     if info then
                         for _, value in ipairs(info[name]) do
-                            values[value] = string.format(" -> package(%s)", pkg:name())
+                            values[value] = string.format(" -> package(%s)", pkg:fullname())
                         end
                     else
                         local components_str = table.concat(table.wrap(configinfo.components), ", ")
-                        utils.warning("unknown component(%s) in add_packages(%s, {components = {%s}})", component_name, pkg:name(), components_str)
+                        utils.warning("unknown component(%s) in add_packages(%s, {components = {%s}})", component_name, pkg:fullname(), components_str)
                     end
                 end
             end
@@ -95,7 +95,7 @@ function _get_values_from_pkgs(target, name)
         else
             -- get values from the builtin package configs
             for _, value in ipairs(pkg:get(name)) do
-                values[value] = string.format(" -> package(%s)", pkg:name())
+                values[value] = string.format(" -> package(%s)", pkg:fullname())
             end
         end
     end
@@ -247,7 +247,7 @@ function main(name)
 
     -- get target
     config.load()
-    local target = assert(project.target(name), "target(%s) not found!", name)
+    local target = assert(check_targetname(name))
 
     -- show target information
     _show_target(target)
